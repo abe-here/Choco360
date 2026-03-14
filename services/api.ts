@@ -10,7 +10,7 @@ export const api = {
   async login(email: string): Promise<User> {
     const cleanEmail = email.toLowerCase().trim();
     if (!cleanEmail.endsWith(ALLOWED_DOMAIN)) {
-      throw new Error(`只限使用 ${ALLOWED_DOMAIN} 網域登入`);
+      throw new Error('登入失敗，請確認您使用的是受信任的企業帳號。');
     }
 
     const { data: existing, error: fetchError } = await supabase
@@ -22,7 +22,7 @@ export const api = {
     if (fetchError) throw fetchError;
 
     if (!existing) {
-      throw new Error('找不到您的帳號。請聯繫管理員建立帳號後再試。');
+      throw new Error('找不到您的帳號。請聯繫 HR 或系統管理員為您開通權限後再試。');
     }
 
     await supabase.from('profiles').update({

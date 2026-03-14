@@ -286,7 +286,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                     <td className="px-8 py-6 text-right">
                       <div className="flex justify-end gap-2">
                         <button onClick={() => { setSelectedNomination(nom); setIsManageDrawerOpen(true); }} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shadow-sm" title="調整名單與移轉主管"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg></button>
-                        <button onClick={() => { setNominationToDelete(nom); setIsDeleteDrawerOpen(true); }} className="p-2.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm" title="刪除週期"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1h-4a1 1 0 00-1-1v3M4 7h16" /></svg></button>
+                        <button onClick={() => { setNominationToDelete(nom); setIsDeleteDrawerOpen(true); }} className="p-2.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm" title="刪除問卷"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1h-4a1 1 0 00-1-1v3M4 7h16" /></svg></button>
                       </div>
                     </td>
                   </tr>
@@ -425,7 +425,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{q.dimensions?.length || 0} 個維度</p>
                   <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">v{new Date(q.createdAt || '').toLocaleDateString()}</p>
                 </div>
-                <button onClick={() => { setEditingForm(q); setIsFormPanelOpen(true); }} className="text-indigo-600 font-black text-sm hover:underline text-sm uppercase tracking-widest">編輯架構</button>
+                <button onClick={() => { setEditingForm(q); setIsFormPanelOpen(true); }} className="text-indigo-600 font-black text-sm hover:underline text-sm uppercase tracking-widest">編輯問卷</button>
               </div>
             </div>
           </div>
@@ -831,12 +831,123 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
     );
   };
 
+  const renderSystemInfo = () => {
+    // 簡單解析 VERSION.md 擷取最新版本號與項目
+    let latestVersion = 'v1.0.0 (Stable)';
+    let updateItems: string[] = [];
+    
+    try {
+      const parts = versionData.split('## 4. 版本紀錄 (Milestones)');
+      if (parts.length > 1) {
+        const lines = parts[1].split('\n').filter(l => l.trim() !== '');
+        // 找第一個版本記錄，通常起手式是 - **v1.0.0 (Stable)**: 或類似格式
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].startsWith('- **v')) {
+            const vMatch = lines[i].match(/\*\*([^*]+)\*\*/);
+            if (vMatch) latestVersion = vMatch[1];
+            // 抓取這個版本下一層的 bullet points
+            let j = i + 1;
+            while (j < lines.length && (lines[j].startsWith('  -') || lines[j].trim() === '')) {
+              if (lines[j].trim() !== '') {
+                updateItems.push(lines[j].replace('  -', '').trim());
+              }
+              j++;
+            }
+            break; // 只抓最新的一個版本
+          }
+        }
+      }
+    } catch(e) {}
+    
+    if (updateItems.length === 0) {
+      updateItems = ['實作基礎 CRUD 與狀態管理', '整合 Google 企業信箱登入 (SSO)', 'TDD 架構引入與安全性強化 (Auth Edge Cases)'];
+    }
+
+    return (
+      <div className="max-w-6xl mx-auto animate-in slide-in-from-bottom-4 duration-500 pb-20">
+        <div className="flex flex-col md:flex-row gap-8">
+          
+          {/* 左側：開發團隊資訊 (大約 35% 寬) */}
+          <div className="w-full md:w-5/12 space-y-8">
+            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl overflow-hidden h-full">
+              <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center gap-4">
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">開發團隊</h3>
+                  <p className="text-slate-500 text-[10px] font-bold mt-0.5">Foundational Engineering</p>
+                </div>
+              </div>
+              <div className="p-6 space-y-5">
+                 <div className="pb-4 border-b border-slate-50">
+                   <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">開發者 / 負責人</p>
+                   <p className="text-lg font-black text-slate-900">Abraham Chien</p>
+                 </div>
+                 <div className="pb-4 border-b border-slate-50">
+                   <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">所屬組織</p>
+                   <p className="text-lg font-black text-slate-900">CHOCO Media Group</p>
+                 </div>
+                 <div>
+                   <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">核心引擎</p>
+                   <p className="text-lg font-black text-indigo-600">Antigravity</p>
+                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 右側：版本更新資訊 (大約 65% 寬) */}
+          <div className="w-full md:w-7/12">
+            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl overflow-hidden h-full">
+              <div className="p-6 border-b border-slate-100 bg-emerald-50 flex items-center gap-4">
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                  <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-emerald-900 uppercase tracking-tight">版本更新資訊</h3>
+                  <p className="text-emerald-600/70 text-[10px] font-bold mt-0.5">Release History & Change Logs</p>
+                </div>
+              </div>
+              
+              <div className="p-8">
+                 <div className="flex items-start gap-5 relative">
+                   <div className="absolute left-[19px] top-[30px] bottom-[-20px] w-0.5 bg-slate-100"></div>
+                   <div className="shrink-0 w-10 h-10 bg-indigo-50 border-4 border-white rounded-full flex items-center justify-center z-10 shadow-sm mt-1">
+                      <span className="w-3 h-3 rounded-full bg-indigo-600 shadow-[0_0_8px_rgba(79,70,229,0.5)]"></span>
+                   </div>
+                   <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex-1">
+                      <div className="flex justify-between items-start mb-4 border-b border-slate-200 pb-4">
+                        <div>
+                          <h4 className="text-xl font-black text-slate-900 leading-none">{latestVersion}</h4>
+                          <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">目前穩定版本</p>
+                        </div>
+                        <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase tracking-widest rounded-lg">最新發布</span>
+                      </div>
+                      <ul className="space-y-3">
+                        {updateItems.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-3">
+                            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-400 mt-2"></span>
+                            <span className="text-sm font-bold text-slate-700 leading-tight">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                   </div>
+                 </div>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 relative">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl">
         <div><h1 className="text-3xl font-black text-white tracking-tight">系統控制中心</h1><p className="text-slate-400 font-bold mt-1 uppercase text-[10px] tracking-[0.2em]">Choco360 Control v2.10</p></div>
         <div className="flex bg-white/10 p-1.5 rounded-2xl backdrop-blur-md overflow-x-auto scrollbar-hide">
-          {[ { id: 'activity', label: '活動監控' }, { id: 'users', label: '員工管理' }, { id: 'forms', label: '問卷設計' }, { id: 'system', label: '系統備份' } ].map((tab) => (
+          {[ { id: 'activity', label: '活動監控' }, { id: 'users', label: '員工管理' }, { id: 'forms', label: '問卷設計' }, { id: 'system', label: '系統資訊' } ].map((tab) => (
             <button key={tab.id} onClick={() => setActiveSubTab(tab.id as any)} className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${activeSubTab === tab.id ? 'bg-white text-slate-900 shadow-xl' : 'text-white hover:bg-white/5'}`}>{tab.label}</button>
           ))}
         </div>
@@ -845,11 +956,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
       {activeSubTab === 'activity' && renderActivityMonitoring()}
       {activeSubTab === 'users' && renderUserManagement()}
       {activeSubTab === 'forms' && renderFormManagement()}
-      {activeSubTab === 'system' && (
-        <div className="space-y-8 pb-20">
-          <section className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl p-10"><div className="flex justify-between items-start mb-10"><div><h2 className="text-2xl font-black text-slate-900">資料備份</h2><p className="text-slate-500 mt-1 text-sm">手動備份 JSON 快照以防資料遺失。</p></div><button onClick={() => { const data = { users, questionnaires, exportDate: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `choco360_backup_${new Date().toISOString().split('T')[0]}.json`; link.click(); }} className="px-8 py-4 bg-slate-900 text-white font-black rounded-2xl hover:bg-indigo-600 transition-all shadow-xl">匯出全量備份 (JSON)</button></div></section>
-        </div>
-      )}
+      {activeSubTab === 'system' && renderSystemInfo()}
 
       {renderUserEditor()}
       {renderFormEditor()}

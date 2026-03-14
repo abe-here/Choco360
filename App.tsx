@@ -157,7 +157,7 @@ const App: React.FC = () => {
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Google 企業帳號登入</label>
               <div id="googleLoginBtn" className="flex justify-center"></div>
             </div>
-            <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">僅限 @choco.media 網域員工存取</p>
+            <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Internal System Access</p>
           </div>
         </div>
         <div className="absolute bottom-8 right-8 text-right select-none">
