@@ -126,6 +126,11 @@ const App: React.FC = () => {
         <div className="max-w-md w-full bg-white p-10 rounded-[2.5rem] border-2 border-rose-100 shadow-2xl space-y-6">
           <h1 className="text-2xl font-black text-slate-900">資料庫連線中斷</h1>
           <p className="text-slate-500 text-sm">請確認 Supabase 設定正確且專案未被暫停。</p>
+          {dbError && (
+            <div className="p-3 bg-rose-50 rounded-xl text-[10px] text-rose-600 font-mono break-all line-clamp-3">
+              Error: {dbError}
+            </div>
+          )}
           <button onClick={() => window.location.reload()} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl">重新整理</button>
         </div>
       </div>
