@@ -17,6 +17,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Debug Environment (Safe)
+        run: |
+          echo "Project ID: ${PROJECT_ID:-(Not Set)}"
+          echo "Region: ${REGION}"
+          echo "Service Name: ${SERVICE_NAME}"
+
       - name: Google Auth
         uses: 'google-github-actions/auth@v2'
         with:
@@ -24,6 +30,7 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: 'google-github-actions/setup-gcloud@v2'
+
 
       - name: Authorize Docker
         run: |
