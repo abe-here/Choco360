@@ -33,6 +33,12 @@ test.describe('06. Reports & AI Coach', () => {
         questions: [
           { id: 'q3-r', text: '溝通時能清楚表達觀點並傾聽他人意見', question_type: 'rating' }
         ]
+      },
+      {
+        id: 'dim-4', name: '開放回饋', purpose: '蒐集自由文字回饋',
+        questions: [
+          { id: 'q4-t', text: '請提供任何其他意見或建議：', question_type: 'text' }
+        ]
       }
     ]
   };
@@ -73,7 +79,8 @@ test.describe('06. Reports & AI Coach', () => {
         { id: 'fr-s2', feedback_id: 'fb-self', question_id: 'q1-t', score: null, answer_text: '我經常主動幫助同事 debug。', dimension_name: '團隊合作' },
         { id: 'fr-s3', feedback_id: 'fb-self', question_id: 'q2-r', score: 5, answer_text: null, dimension_name: '問題解決' },
         { id: 'fr-s4', feedback_id: 'fb-self', question_id: 'q2-t', score: null, answer_text: '帶領團隊完成了系統重構。', dimension_name: '問題解決' },
-        { id: 'fr-s5', feedback_id: 'fb-self', question_id: 'q3-r', score: 3, answer_text: null, dimension_name: '溝通表達' }
+        { id: 'fr-s5', feedback_id: 'fb-self', question_id: 'q3-r', score: 3, answer_text: null, dimension_name: '溝通表達' },
+        { id: 'fr-s6', feedback_id: 'fb-self', question_id: 'q4-t', score: null, answer_text: '希望能有更多跨部門交流的機會。', dimension_name: '開放回饋' }
       ]
     },
     {
@@ -86,7 +93,8 @@ test.describe('06. Reports & AI Coach', () => {
         { id: 'fr-p1-2', feedback_id: 'fb-peer1', question_id: 'q1-t', score: null, answer_text: '在專案緊急時主動加班協助。', dimension_name: '團隊合作' },
         { id: 'fr-p1-3', feedback_id: 'fb-peer1', question_id: 'q2-r', score: 4, answer_text: null, dimension_name: '問題解決' },
         { id: 'fr-p1-4', feedback_id: 'fb-peer1', question_id: 'q2-t', score: null, answer_text: '提出了很好的架構改善建議。', dimension_name: '問題解決' },
-        { id: 'fr-p1-5', feedback_id: 'fb-peer1', question_id: 'q3-r', score: 3, answer_text: null, dimension_name: '溝通表達' }
+        { id: 'fr-p1-5', feedback_id: 'fb-peer1', question_id: 'q3-r', score: 3, answer_text: null, dimension_name: '溝通表達' },
+        { id: 'fr-p1-6', feedback_id: 'fb-peer1', question_id: 'q4-t', score: null, answer_text: '非常好的團隊成員！', dimension_name: '開放回饋' }
       ]
     },
     {
@@ -99,7 +107,8 @@ test.describe('06. Reports & AI Coach', () => {
         { id: 'fr-p2-2', feedback_id: 'fb-peer2', question_id: 'q1-t', score: null, answer_text: '願意分享知識並耐心指導新人。', dimension_name: '團隊合作' },
         { id: 'fr-p2-3', feedback_id: 'fb-peer2', question_id: 'q2-r', score: 1, answer_text: null, dimension_name: '問題解決' },
         { id: 'fr-p2-4', feedback_id: 'fb-peer2', question_id: 'q2-t', score: null, answer_text: '對於這方面我不太清楚。', dimension_name: '問題解決' },
-        { id: 'fr-p2-5', feedback_id: 'fb-peer2', question_id: 'q3-r', score: 4, answer_text: null, dimension_name: '溝通表達' }
+        { id: 'fr-p2-5', feedback_id: 'fb-peer2', question_id: 'q3-r', score: 4, answer_text: null, dimension_name: '溝通表達' },
+        { id: 'fr-p2-6', feedback_id: 'fb-peer2', question_id: 'q4-t', score: null, answer_text: '建議可以多分享技術心得。', dimension_name: '開放回饋' }
       ]
     }
   ];
@@ -217,16 +226,20 @@ test.describe('06. Reports & AI Coach', () => {
     await expect(page.locator('text=基於 0 份回饋分析')).toBeVisible();
   });
 
-  // ====== Test 3: 雷達圖渲染 ======
-  test('雷達圖正確渲染且顯示維度標籤', async ({ page }) => {
+  // ====== Test 3: 雷達圖渲染（排除純文字維度） ======
+  test('雷達圖正確渲染且僅顯示含 rating 題的維度標籤', async ({ page }) => {
     // SVG 存在
     const svg = page.locator('svg');
     await expect(svg.first()).toBeVisible();
 
-    // 3 個維度標籤
+    // 3 個含 rating 題的維度標籤應顯示
     await expect(page.locator('text=團隊合作').first()).toBeVisible();
     await expect(page.locator('text=問題解決').first()).toBeVisible();
     await expect(page.locator('text=溝通表達').first()).toBeVisible();
+
+    // 純文字維度「開放回饋」不應出現在雷達圖 SVG 中
+    const radarSection = page.locator('section', { has: page.locator('h2:has-text("落差分析雷達圖")') });
+    await expect(radarSection.locator('svg text', { hasText: '開放回饋' })).toHaveCount(0);
   });
 
   // ====== Test 4: 雷達圖圖例 ======

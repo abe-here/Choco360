@@ -135,7 +135,9 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
   // 【強化邏輯】：計算維度平均值，排除 1 分 (不清楚)
   const dimensionMetrics = useMemo(() => {
     if (!currentQuestionnaire || !currentFeedbacks.length) return [];
-    return currentQuestionnaire.dimensions.map(dim => {
+    return currentQuestionnaire.dimensions
+      .filter(dim => dim.questions.some(q => q.type === 'rating'))
+      .map(dim => {
       // 他評平均計算：過濾掉 score === 1
       const peerResponses = currentFeedbacks
         .filter(f => f.fromUserId !== user.id)
