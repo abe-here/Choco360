@@ -17,17 +17,26 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export const checkSupabaseConnection = async () => {
+export const checkSupabaseConnection = async (): Promise<{ connected: boolean; error: string | null }> => {
   try {
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error("Missing Supabase URL or Anon Key. Check build-time environment variables.");
+      return { connected: false, error: `Missing env vars. URL=${supabaseUrl ? 'SET' : 'EMPTY'}, KEY=${supabaseAnonKey ? 'SET' : 'EMPTY'}` };
     }
-    const { data, error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
-    if (error && error.code !== 'PGRST116') throw error;
-    return { connected: true, error: null };
+    // Direct fetch to bypass Supabase client and get raw error
+    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?select=count&limit=0`, {
+      headers: {
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${supabaseAnonKey}`
+      }
+    });
+    if (res.ok || res.status === 200 || res.status === 406) {
+      return { connected: true, error: null };
+    }
+    const body = await res.text();
+    return { connected: false, error: `HTTP ${res.status}: ${body} (URL: ${supabaseUrl.substring(0, 30)}...)` };
   } catch (err: any) {
     console.error("Supabase Connection Check Failed.", err);
-    const msg = typeof err === 'string' ? err : (err?.message || JSON.stringify(err));
-    return { connected: false, error: msg };
+    const msg = err?.message || JSON.stringify(err) || 'Unknown error';
+    return { connected: false, error: `Fetch failed: ${msg} (URL: ${supabaseUrl.substring(0, 30)}...)` };
   }
 };
