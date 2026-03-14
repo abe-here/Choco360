@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
+  const [dbError, setDbError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<{code: string, message: string} | null>(null);
   
   const [users, setUsers] = useState<User[]>([]);
@@ -43,11 +44,17 @@ const App: React.FC = () => {
   useEffect(() => {
     const initApp = async () => {
       try {
-        const connected = await checkSupabaseConnection();
+        const { connected, error } = await checkSupabaseConnection();
         setIsDbConnected(connected);
-        const user = await api.getCurrentUser();
-        if (user) setCurrentUser(user);
-      } catch (e) { console.error("Init failed:", e); } finally { setLoading(false); }
+        if (error) setDbError(error);
+        if (connected) {
+          const user = await api.getCurrentUser();
+          if (user) setCurrentUser(user);
+        }
+      } catch (e: any) { 
+        console.error("Init failed:", e);
+        setDbError(e.message || String(e));
+      } finally { setLoading(false); }
     };
     initApp();
   }, []);

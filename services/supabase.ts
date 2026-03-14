@@ -19,11 +19,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export const checkSupabaseConnection = async () => {
   try {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error("Missing Supabase URL or Anon Key. Check build-time environment variables.");
+    }
     const { data, error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
     if (error && error.code !== 'PGRST116') throw error;
-    return true;
-  } catch (err) {
-    console.error("Supabase Connection Check Failed. If RLS is ON, check your policies.", err);
-    return false;
+    return { connected: true, error: null };
+  } catch (err: any) {
+    console.error("Supabase Connection Check Failed.", err);
+    return { connected: false, error: err.message || String(err) };
   }
 };
