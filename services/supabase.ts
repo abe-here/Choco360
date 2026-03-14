@@ -27,6 +27,7 @@ export const checkSupabaseConnection = async () => {
     return { connected: true, error: null };
   } catch (err: any) {
     console.error("Supabase Connection Check Failed.", err);
-    return { connected: false, error: err.message || String(err) };
+    const msg = typeof err === 'string' ? err : (err?.message || JSON.stringify(err));
+    return { connected: false, error: msg };
   }
 };
