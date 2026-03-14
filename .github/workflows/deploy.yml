@@ -7,8 +7,8 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: us-central1
-  SERVICE_NAME: choco360
+  REGION: us-west1
+  SERVICE_NAME: choco360-ai-powered-feedback-system
 
 jobs:
   deploy:
