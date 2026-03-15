@@ -163,25 +163,17 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
   }, [currentQuestionnaire, currentFeedbacks, user.id]);
 
   const handleRunAI = async () => {
-    const hasSelf = currentFeedbacks.some(f => f.fromUserId === user.id);
-    const hasOther = currentFeedbacks.some(f => f.fromUserId !== user.id);
-
-    if (!selectedNomination || !currentQuestionnaire) return;
-
-    if (!hasSelf || !hasOther) {
-      alert("數據不足：生成 AI 洞察需要同時包含「自評」與至少一份「他評」回饋。");
+    if (!selectedNomination || !currentQuestionnaire || currentFeedbacks.length < 2) {
+      alert("數據不足（需包含自評與至少一位他評）");
       return;
     }
-
     setIsAnalyzing(true);
     try {
       const analysis = await analyzeFeedback(currentFeedbacks, currentQuestionnaire);
       await api.updateNominationAnalysis(selectedNomination.id, analysis, currentFeedbacks.length);
       setSelectedNomination(prev => prev ? { ...prev, aiAnalysis: analysis, analysisFeedbackCount: currentFeedbacks.length } : null);
-      alert("AI 洞察生成成功！");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      alert(`AI 分析失敗：${err.message || "未知錯誤"}`);
     } finally {
       setIsAnalyzing(false);
     }

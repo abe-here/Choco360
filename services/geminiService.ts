@@ -49,7 +49,7 @@ export const analyzeFeedback = async (feedbacks: FeedbackEntry[], questionnaire:
   `;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-3-pro-preview',
     contents: prompt,
     config: {
       systemInstruction,
@@ -70,16 +70,15 @@ export const analyzeFeedback = async (feedbacks: FeedbackEntry[], questionnaire:
   const responseText = response.text || '';
   
   try {
-    // 徹底清理 JSON，移除 Markdown 代碼塊以及任何不可見字元
+    // 徹底清理 JSON，移除 Markdown 代碼塊與不可見字元
     const cleanJson = responseText
       .replace(/```json/g, '')
       .replace(/```/g, '')
       .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
       .trim();
-    
     return JSON.parse(cleanJson);
   } catch (e) {
     console.error("Gemini JSON parse error:", e, "Original text:", responseText);
-    throw new Error("AI 產出格式異常，請嘗試重新點擊按鈕生成報告");
+    throw new Error("AI 產出格式異常，請嘗試重新整理報告");
   }
 };
