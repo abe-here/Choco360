@@ -65,3 +65,7 @@ The app is containerized via Docker and served with Nginx.
      --set-env-vars VITE_SUPABASE_URL=...,VITE_SUPABASE_ANON_KEY=...,VITE_GOOGLE_CLIENT_ID=...
    ```
 *(Note: Because Vite bundles environment variables at build time, it is recommended to either pass the `--build-arg` in Docker or rely on the `.env` file present at build time before running `gcloud builds submit`. If using Cloud Build, you might want to create a `cloudbuild.yaml` to handle secrets properly.)*
+
+## 📌 5. Roadmap & TODOs
+
+Future tasks, security improvements, and feature requests are tracked in [TODO.md](file:///Users/abraham/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20Projects/Choco360/TODO.md).

@@ -3,7 +3,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { FeedbackEntry, AIAnalysis, Questionnaire } from "../types";
 
 export const analyzeFeedback = async (feedbacks: FeedbackEntry[], questionnaire: Questionnaire): Promise<AIAnalysis> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("找不到 VITE_GEMINI_API_KEY 環境變數，請確認 .env.local 已正確設定。");
+  }
+  const ai = new GoogleGenAI({ apiKey });
   
   // 提取問項文字回饋與評分
   const openEndedAnswers = feedbacks.flatMap(f => 
@@ -45,7 +49,7 @@ export const analyzeFeedback = async (feedbacks: FeedbackEntry[], questionnaire:
   `;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-1.5-flash',
     contents: prompt,
     config: {
       systemInstruction,
@@ -63,14 +67,19 @@ export const analyzeFeedback = async (feedbacks: FeedbackEntry[], questionnaire:
     }
   });
 
-  const text = response.text || '';
-  // 徹底清理 JSON，移除 Markdown 代碼塊
-  const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim();
+  const responseText = response.text || '';
   
   try {
+    // 徹底清理 JSON，移除 Markdown 代碼塊以及任何不可見字元
+    const cleanJson = responseText
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+      .trim();
+    
     return JSON.parse(cleanJson);
   } catch (e) {
-    console.error("Gemini JSON parse error:", e, "Cleaned text:", cleanJson);
-    throw new Error("AI 產出格式異常，請嘗試重新整理報告");
+    console.error("Gemini JSON parse error:", e, "Original text:", responseText);
+    throw new Error("AI 產出格式異常，請嘗試重新點擊按鈕生成報告");
   }
 };
