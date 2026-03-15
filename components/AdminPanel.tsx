@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Questionnaire, Nomination, FeedbackEntry, QuestionType } from '../types';
 import { api } from '../services/api';
+import { slackService } from '../services/slackService';
 
 interface AdminPanelProps {
   users: User[];
@@ -44,6 +45,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
   const [editingForm, setEditingForm] = useState<Partial<Questionnaire> | null>(null);
   const [isSavingForm, setIsSavingForm] = useState(false);
 
+  // --- 系統資訊狀態 ---
+  const [versionData, setVersionData] = useState<string>('');
+
   // --- 常數定義 ---
   const DEPARTMENTS = ['Product', 'Data', 'Marketing', 'Content', 'HR/ADM', 'AVOD', 'Finance'];
   const ROLES = ['PM', 'Designer', 'Developer', 'QA', 'IT', 'DA/DE', 'CS', 'Content', 'HR/ADM', 'AVOD', 'Marketing', 'Finance'];
@@ -54,7 +58,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
 
   useEffect(() => {
     fetchActivityData();
+    fetchVersionData();
   }, []);
+
+  const fetchVersionData = async () => {
+    try {
+      // VERSION.md is in the project root, but fetch works from the public/dev server root.
+      // We'll try fetching it directly, or fallback to a hardcoded version if needed.
+      const resp = await fetch('/VERSION.md');
+      if (resp.ok) {
+        const text = await resp.text();
+        setVersionData(text);
+      }
+    } catch (e) {
+      console.error("Failed to fetch version data", e);
+    }
+  };
 
   const fetchActivityData = async () => {
     setIsLoadingActivity(true);
@@ -769,7 +788,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                            <p className="text-sm font-black text-slate-900 truncate">{u?.name || rid}</p>
                            <div className="flex items-center gap-1.5 mt-0.5">
                               <span className={`w-1.5 h-1.5 rounded-full ${isFinished ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-400 animate-pulse'}`}></span>
-                              <span className={`text-[9px] font-black uppercase tracking-wider ${isFinished ? 'text-emerald-600' : 'text-slate-400'}`}>
+                              <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${isFinished ? 'text-emerald-600' : 'text-slate-400'}`}>
                                 {isFinished ? '已繳卷' : '待填寫中'}
                               </span>
                            </div>
@@ -830,6 +849,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
       </>
     );
   };
+
 
   const renderSystemInfo = () => {
     // 簡單解析 VERSION.md 擷取最新版本號與項目

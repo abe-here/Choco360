@@ -16,6 +16,8 @@
    👉 對應 `FeedbackForm.tsx` / `tests/e2e/feedback.spec.ts`
 6. **[Reports & AI Coach](./specs/06_Reports_and_AI.md)** 
    👉 對應 `Reports.tsx` / `tests/e2e/reports.spec.ts`
+7. **[Slack Notification](./specs/07_Slack_Integration.md)**
+   👉 對應 `services/slackService.ts` / 跨模組觸發
 
 ---
 ## 🛠️ 測試驅動規範 (TDD Policy)

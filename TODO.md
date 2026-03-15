@@ -18,3 +18,27 @@
 
 ---
 *註：此檔案用於追蹤專案的長期目標、安全性漏洞與技術建言。*
+
+## 開發日誌20260315
+根據我剛才對代碼的分析，Choco360 的 Slack 通知功能現狀如下：
+
+### 1. 核心機制 (Infrastructure)
+*   **整合方式**：透過 `services/slackService.ts` 調用 Slack Web API，支援 Block Kit (互動式卡片)。
+*   **環境變數**：`.env.local` 已配置 `VITE_SLACK_BOT_TOKEN` 與 `VITE_SLACK_REMINDER_DAYS` (目前設為 3 天)。
+*   **開發保護模式**：這是目前**最重要的現狀**——在 `services/slackService.ts` 中硬編碼了轉發邏輯，**目前不論原本接收者是誰，所有通知一律只會發送到 `abraham.chien@choco.media`**。
+
+### 2. 即時觸發點 (Real-time Triggers)
+目前代碼中已實作下列自動通知：
+*   **提名通知**：員工送出提名後，系統會通知該員工的主管。
+*   **評量任務**：主管核准提名後，系統會通知所有被指定的評量者 (Reviewers)。
+*   **回饋送達**：有人完成評量後，系統會通知受評者。
+
+### 3. 自動催促機制 (Automatic Reminders)
+*   **自動化邏輯**：在 `App.tsx` 初始化時會調用 `checkAndSendBatchReminders`。
+*   **執行條件**：系統會掃描 `Pending` (待主管審核) 或 `Approved` (評量中且快到期) 的案件，並配合 `localStorage` 紀錄，每隔 X 天 (目前是 3 天) 自動統整並發送一次提醒。
+
+### 4. Admin UI 現狀
+*   **AdminPanel**：雖然管理介面有「催促繳卷」的按鈕，但目前的代碼逻辑只是顯示 `alert` 視窗提示「已發送電子郵件」，**並未真正觸發單獨的 Slack 通知**（目前主要是靠上述的 3 天一次自動統整通知）。
+
+### 總結
+功能架構已經完整，**自動化通知也已經在跑**，但為了開發安全，通知對象被鎖定在您的帳號下。若要正式上線，需要解除 `slackService.ts` 中的開發保護模式。

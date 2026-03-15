@@ -1,6 +1,6 @@
-
 import { supabase } from './supabase';
 import { User, Questionnaire, FeedbackEntry, FeedbackResponse, Nomination, AIAnalysis, SystemMessage } from '../types';
+import { slackService } from './slackService';
 
 const ALLOWED_DOMAIN = '@choco.media';
 const STORAGE_KEY = 'nexus360_user_email';
@@ -227,6 +227,18 @@ export const api = {
     
     if (fbError) throw fbError;
 
+    // --- Slack Notification: Notify Recipient ---
+    try {
+      const { data: receiver } = await supabase.from('profiles').select('email').eq('id', entry.toUserId).single();
+      if (receiver?.email) {
+        // Find title for context
+        const { data: questionnaire } = await supabase.from('questionnaires').select('title').eq('id', entry.questionnaireId).single();
+        await slackService.notifyUserOfNewFeedback(receiver.email, questionnaire?.title || '360 評量');
+      }
+    } catch (e) {
+      console.warn("Slack notification failed", e);
+    }
+
     if (entry.responses && entry.responses.length > 0) {
       const { error: resError } = await supabase.from('feedback_responses').insert(entry.responses.map(r => ({
         feedback_id: fbData.id, 
@@ -371,7 +383,16 @@ export const api = {
       questionnaire_id: n.questionnaireId, 
       due_date: n.dueDate
     });
+    
     if (error) throw error;
+
+    // --- Slack Notification: Notify Manager ---
+    try {
+      const { data: requester } = await supabase.from('profiles').select('name').eq('id', n.requesterId).single();
+      await slackService.notifyManagerOfNomination(n.managerId, requester?.name || '同仁', n.title || '360 評量');
+    } catch (e) {
+      console.warn("Slack notification failed", e);
+    }
   },
 
   async updateNomination(id: string, updates: Partial<Nomination>): Promise<void> {
@@ -382,6 +403,27 @@ export const api = {
 
     const { error } = await supabase.from('nominations').update(payload).eq('id', id);
     if (error) throw error;
+
+    // --- Slack Notification: Notify Reviewers if Approved ---
+    if (updates.status === 'Approved') {
+      try {
+        const { data: nom } = await supabase.from('nominations').select('reviewer_ids, title, requester_id').eq('id', id).single();
+        if (nom && nom.reviewer_ids && nom.reviewer_ids.length > 0) {
+          const { data: reviewers } = await supabase.from('profiles').select('email').in('id', nom.reviewer_ids);
+          const { data: requester } = await supabase.from('profiles').select('name').eq('id', nom.requester_id).single();
+          
+          if (reviewers) {
+            for (const reviewer of reviewers) {
+              if (reviewer.email) {
+                await slackService.notifyReviewerOfNewTask(reviewer.email, requester?.name || '同仁', nom.title || '360 評量');
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Slack notification failed", e);
+      }
+    }
   },
 
   async deleteNomination(id: string): Promise<void> {
@@ -395,5 +437,107 @@ export const api = {
       analysis_feedback_count: count
     }).eq('id', id);
     if (error) throw error;
+  },
+
+  /**
+   * 批次發送 Slack 提醒 (自動化)
+   * 檢查是否有：
+   * 1. 待審核的提名 (提醒主管)
+   * 2. 即將到期且未完成的評量 (提醒評量者)
+   * 
+   * 配合 localStorage 確保不會過於頻繁發送 (預設 7 天一次)
+   */
+  async checkAndSendBatchReminders(): Promise<void> {
+    const LAST_REMINDER_KEY = 'choco360_last_slack_reminder';
+    const REMINDER_DAYS = Number(import.meta.env.VITE_SLACK_REMINDER_DAYS || 7);
+    
+    const lastReminder = localStorage.getItem(LAST_REMINDER_KEY);
+    const now = new Date();
+    
+    if (lastReminder) {
+      const lastDate = new Date(lastReminder);
+      const diffTime = Math.abs(now.getTime() - lastDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays < REMINDER_DAYS) {
+        console.log(`[Slack] Skipping reminders. Last sent ${diffDays} days ago. (Interval: ${REMINDER_DAYS} days)`);
+        return;
+      }
+    }
+
+    console.group('🚀 [Slack Automatic Reminder] Starting batch process...');
+    try {
+      // 1. 取得所有進行中的提名
+      const { data: nominations } = await supabase
+        .from('nominations')
+        .select('*')
+        .or('status.eq.Pending,status.eq.Approved');
+
+      if (!nominations || nominations.length === 0) {
+        console.log('No active nominations found.');
+        console.groupEnd();
+        return;
+      }
+
+      const { data: feedback } = await supabase.from('feedbacks').select('nomination_id, from_user_id');
+      const finishedSet = new Set((feedback || []).map(f => `${f.nomination_id}-${f.from_user_id}`));
+      
+      const managerReminders: Record<string, { requesterId: string; title: string }[]> = {};
+      const reviewerReminders: Record<string, { requesterId: string; title: string }[]> = {};
+      const profilesToFetch = new Set<string>();
+
+      for (const n of nominations) {
+        if (n.status === 'Pending') {
+          // 主管審核提醒
+          if (!managerReminders[n.manager_email]) managerReminders[n.manager_email] = [];
+          managerReminders[n.manager_email].push({ requesterId: n.requester_id, title: n.title });
+          profilesToFetch.add(n.requester_id);
+        } else if (n.status === 'Approved') {
+          // 評量者填寫提醒 (檢查是否快到期)
+          const dueDate = n.due_date ? new Date(n.due_date) : null;
+          const oneMonthFromNow = new Date();
+          oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
+
+          if (!dueDate || dueDate <= oneMonthFromNow) {
+            for (const reviewerId of n.reviewer_ids) {
+              if (!finishedSet.has(`${n.id}-${reviewerId}`)) {
+                if (!reviewerReminders[reviewerId]) reviewerReminders[reviewerId] = [];
+                reviewerReminders[reviewerId].push({ requesterId: n.requester_id, title: n.title });
+                profilesToFetch.add(reviewerId);
+                profilesToFetch.add(n.requester_id);
+              }
+            }
+          }
+        }
+      }
+
+      // 取得所有相關姓名
+      const { data: profiles } = await supabase.from('profiles').select('id, name, email').in('id', Array.from(profilesToFetch));
+      const profileMap = (profiles || []).reduce((acc: any, p) => ({ ...acc, [p.id]: p }), {});
+
+      // 發送主管提醒
+      for (const managerEmail in managerReminders) {
+        const items = managerReminders[managerEmail];
+        const requesterName = profileMap[items[0].requesterId]?.name || '同仁';
+        await slackService.notifyManagerOfNomination(managerEmail, requesterName, items[0].title);
+      }
+
+      // 發送評量者提醒
+      for (const reviewerId in reviewerReminders) {
+        const reviewer = profileMap[reviewerId];
+        if (!reviewer?.email) continue;
+        
+        const tasks = reviewerReminders[reviewerId].map(t => ({
+          requesterName: profileMap[t.requesterId]?.name || '同仁',
+          title: t.title
+        }));
+        await slackService.notifyReviewerOfPendingTasks(reviewer.email, tasks.length, tasks);
+      }
+
+      localStorage.setItem(LAST_REMINDER_KEY, now.toISOString());
+      console.log('[Slack] All batch reminders sent successfully.');
+    } catch (e) {
+      console.error('[Slack] Failed to process batch reminders', e);
+    }
+    console.groupEnd();
   }
 };

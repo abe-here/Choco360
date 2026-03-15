@@ -47,10 +47,14 @@ const App: React.FC = () => {
         const { connected, error } = await checkSupabaseConnection();
         setIsDbConnected(connected);
         if (error) setDbError(error);
-        if (connected) {
-          const user = await api.getCurrentUser();
-          if (user) setCurrentUser(user);
-        }
+          if (connected) {
+            const user = await api.getCurrentUser();
+            if (user) {
+              setCurrentUser(user);
+              // 自動批次檢查 Slack 提醒 (內部有 7 天間隔邏輯)
+              api.checkAndSendBatchReminders();
+            }
+          }
       } catch (e: any) { 
         console.error("Init failed:", e);
         setDbError(e.message || String(e));
