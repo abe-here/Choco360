@@ -204,6 +204,7 @@ const App: React.FC = () => {
             <div className="space-y-4">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">企業級安全登入</label>
               <button 
+                id="googleLoginBtn"
                 onClick={async () => {
                   setAuthError(null);
                   try { await api.loginWithGoogle(); }

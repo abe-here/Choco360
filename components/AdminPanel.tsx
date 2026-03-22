@@ -1045,23 +1045,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
     let updateItems: string[] = [];
     
     try {
-      const parts = versionData.split('## 4. 版本紀錄 (Milestones)');
+      const parts = versionData.split('## 5. 版本紀錄 (Changelog)');
       if (parts.length > 1) {
         const lines = parts[1].split('\n').filter(l => l.trim() !== '');
-        // 找第一個版本記錄，通常起手式是 - **v1.0.0 (Stable)**: 或類似格式
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].startsWith('- **v')) {
-            const vMatch = lines[i].match(/\*\*([^*]+)\*\*/);
-            if (vMatch) latestVersion = vMatch[1];
-            // 抓取這個版本下一層的 bullet points
-            let j = i + 1;
-            while (j < lines.length && (lines[j].startsWith('  -') || lines[j].trim() === '')) {
-              if (lines[j].trim() !== '') {
-                updateItems.push(lines[j].replace('  -', '').trim());
-              }
-              j++;
-            }
-            break; // 只抓最新的一個版本
+          if (lines[i].startsWith('### v')) {
+             latestVersion = lines[i].replace('###', '').trim();
+             let j = i + 1;
+             while (j < lines.length && lines[j].startsWith('- ')) {
+               updateItems.push(lines[j].replace('- ', '').trim());
+               j++;
+             }
+             break;
           }
         }
       }

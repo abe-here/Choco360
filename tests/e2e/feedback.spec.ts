@@ -114,7 +114,9 @@ test.describe('05. Feedback Execution Flow', () => {
     // Inject localStorage for auto-login
     const ref = new URL(process.env.VITE_SUPABASE_URL || 'https://default.supabase.co').hostname.split('.')[0];
     await page.addInitScript((projectRef) => {
-      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify({ user: { email: 'employee@choco.media' }, access_token: 'fake', expires_at: 9999999999 }));
+      const email = 'employee@choco.media';
+      const fakeSession = { access_token: 'fake', refresh_token: 'fake', expires_in: 3600, expires_at: 9999999999, token_type: 'bearer', user: { id: 'test-id', aud: 'authenticated', role: 'authenticated', email, app_metadata: { provider: 'google', providers: ['google'] }, user_metadata: {}, created_at: '2023-01-01T00:00:00.000Z', updated_at: '2023-01-01T00:00:00.000Z' } };
+      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify(fakeSession));
     }, ref);
 
     await page.goto('/');

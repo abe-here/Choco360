@@ -66,10 +66,16 @@ export const slackService = {
    * Sends a Direct Message (DM) to a user by their email
    */
   async sendDirectMessageByEmail(email: string, message: { text: string; blocks?: any[] }) {
-    // 開發階段保護：一律轉向發送給 Abraham
-    const targetEmail = DEV_MODE_RECIPIENT;
+    // 開發階段保護：若在 localhost，一律轉向發送給 DEV_MODE_RECIPIENT，避免打擾真實員工
+    const isLocalhost = typeof window !== 'undefined' && 
+                        window.location && 
+                        window.location.hostname === 'localhost';
     
-    console.info(`[Slack Service] Original recipient: ${email}, Rerouted to: ${targetEmail}`);
+    const targetEmail = isLocalhost ? DEV_MODE_RECIPIENT : email;
+    
+    if (isLocalhost) {
+      console.info(`[Slack Service] DEV MODE: Original recipient ${email} rerouted to ${targetEmail}`);
+    }
 
     const slackUserId = await this.getUserIdByEmail(targetEmail);
     if (!slackUserId) {

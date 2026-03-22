@@ -72,10 +72,37 @@ test.describe('02. Admin Configuration - Comprehensive Tests', () => {
       });
     });
 
+    await page.route('**/*/auth/v1/user*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: { id: 'admin-id', email: 'admin@choco.media' }
+      });
+    });
+
+    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+    page.on('pageerror', err => console.log('PAGE ERROR:', err));
+
     // Inject localStorage and wait for login
     const ref = new URL(process.env.VITE_SUPABASE_URL || 'https://default.supabase.co').hostname.split('.')[0];
     await page.addInitScript((projectRef) => {
-      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify({ user: { email: 'admin@choco.media' }, access_token: 'fake', expires_at: 9999999999 }));
+      const fakeSession = {
+        access_token: 'fake_access_token',
+        refresh_token: 'fake_refresh_token',
+        expires_in: 3600,
+        expires_at: 9999999999,
+        token_type: 'bearer',
+        user: {
+          id: 'admin-id',
+          aud: 'authenticated',
+          role: 'authenticated',
+          email: 'admin@choco.media',
+          app_metadata: { provider: 'google', providers: ['google'] },
+          user_metadata: {},
+          created_at: '2023-01-01T00:00:00.000Z',
+          updated_at: '2023-01-01T00:00:00.000Z'
+        }
+      };
+      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify(fakeSession));
     }, ref);
 
     await page.goto('/');
