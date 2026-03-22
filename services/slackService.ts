@@ -8,6 +8,7 @@ import { api } from './api';
 
 const SLACK_BOT_TOKEN = import.meta.env.VITE_SLACK_BOT_TOKEN;
 const DEV_MODE_RECIPIENT = 'abraham.chien@choco.media'; // 開發者保護模式：所有通知僅發送給此 Email
+const APP_URL = import.meta.env.VITE_APP_URL || 'https://choco360-ai-powered-feedback-system-1018914242387.us-west1.run.app';
 
 export const slackService = {
   /**
@@ -108,24 +109,8 @@ export const slackService = {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*${requesterName}* 提交了評量週期：*${title}*\n請撥冗前往系統核准提名名單。`
+          text: `*${requesterName}* 提交了評量週期：*${title}*\n請撥冗前往系統核准提名名單。\n\n👉 *<${APP_URL}|前往核准>*`
         }
-      },
-      {
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "前往核准",
-              emoji: true
-            },
-            url: window.location.origin,
-            style: "primary",
-            action_id: "approve_redirect"
-          }
-        ]
       }
     ];
 
@@ -147,24 +132,8 @@ export const slackService = {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*${requesterName}* 邀請您在「*${title}*」週期中提供回饋。`
+          text: `*${requesterName}* 邀請您在「*${title}*」週期中提供回饋。\n\n👉 *<${APP_URL}|開始填寫>*`
         }
-      },
-      {
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "開始填寫",
-              emoji: true
-            },
-            url: window.location.origin,
-            style: "primary",
-            action_id: "feedback_redirect"
-          }
-        ]
       }
     ];
 
@@ -186,23 +155,8 @@ export const slackService = {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `您在「*${title}*」週期中收到了一筆新的同事回饋。`
+          text: `您在「*${title}*」週期中收到了一筆新的同事回饋。\n\n👉 *<${APP_URL}|查看報告>*`
         }
-      },
-      {
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "查看報告",
-              emoji: true
-            },
-            url: window.location.origin,
-            action_id: "report_redirect"
-          }
-        ]
       }
     ];
 
@@ -231,24 +185,8 @@ export const slackService = {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `您目前有 *${taskCount}* 項評量尚未完成：\n${taskSummary}\n\n*截止日期將至，請撥冗協助填寫！*`
+          text: `您目前有 *${taskCount}* 項評量尚未完成：\n${taskSummary}\n\n*截止日期將至，請撥冗協助填寫！*\n\n👉 *<${APP_URL}|前往 Dashboard>*`
         }
-      },
-      {
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "前往 Dashboard",
-              emoji: true
-            },
-            url: window.location.origin,
-            style: "primary",
-            action_id: "dashboard_redirect"
-          }
-        ]
       }
     ];
 
