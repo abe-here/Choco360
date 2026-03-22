@@ -235,12 +235,13 @@ export const api = {
       if (receiver?.email) {
         const { data: questionnaire } = await supabase.from('questionnaires').select('title').eq('id', entry.questionnaireId).single();
         const title = questionnaire?.title || '360 評量';
-        await slackService.notifyUserOfNewFeedback(receiver.email, title);
+        const result = await slackService.notifyUserOfNewFeedback(receiver.email, title);
         await this.logNotification({
           recipientEmail: receiver.email,
           notificationType: '自動推播 - 收到新回饋',
           messageText: `通知收到新回饋: ${title}`,
-          status: 'sent'
+          status: result ? 'sent' : 'failed',
+          errorMessage: result ? undefined : 'Slack notification failed'
         });
       }
     } catch (e: any) {
@@ -397,12 +398,13 @@ export const api = {
     try {
       const { data: requester, error: reqError } = await supabase.from('profiles').select('name').eq('id', n.requesterId).single();
       if (!reqError) {
-        await slackService.notifyManagerOfNomination(n.managerId, requester?.name || '同仁', n.title || '360 評量');
+        const result = await slackService.notifyManagerOfNomination(n.managerId, requester?.name || '同仁', n.title || '360 評量');
         await this.logNotification({
           recipientEmail: n.managerId,
           notificationType: '自動推播 - 提名待核准',
           messageText: `提醒核准 ${requester?.name || '同仁'} 的 ${n.title || '360 評量'}`,
-          status: 'sent'
+          status: result ? 'sent' : 'failed',
+          errorMessage: result ? undefined : 'Slack notification failed'
         });
       }
     } catch (e: any) {
@@ -432,12 +434,13 @@ export const api = {
             for (const reviewer of reviewers) {
               if (reviewer.email) {
                 try {
-                  await slackService.notifyReviewerOfNewTask(reviewer.email, requester?.name || '同仁', nom.title || '360 評量');
+                  const result = await slackService.notifyReviewerOfNewTask(reviewer.email, requester?.name || '同仁', nom.title || '360 評量');
                   await this.logNotification({
                     recipientEmail: reviewer.email,
                     notificationType: '自動推播 - 新評量任務',
                     messageText: `通知 ${requester?.name || '同仁'} 的新評量任務: ${nom.title || '360 評量'}`,
-                    status: 'sent'
+                    status: result ? 'sent' : 'failed',
+                    errorMessage: result ? undefined : 'Slack notification failed'
                   });
                 } catch(e: any) {
                   await this.logNotification({ recipientEmail: reviewer.email, notificationType: '自動推播 - 新評量任務', messageText: `通知新評量任務: ${nom.title}`, status: 'failed', errorMessage: e.message });
@@ -548,9 +551,9 @@ export const api = {
         const items = managerReminders[managerEmail];
         const requesterName = profileMap[items[0].requesterId]?.name || '同仁';
         try {
-          await slackService.notifyManagerOfNomination(managerEmail, requesterName, items[0].title);
-          await this.logNotification({ recipientEmail: managerEmail, notificationType: '批次 - 提名待核准提醒', messageText: `提醒核准 ${requesterName} 的 ${items[0].title}`, status: 'sent' });
-          sentCount++;
+          const result = await slackService.notifyManagerOfNomination(managerEmail, requesterName, items[0].title);
+          await this.logNotification({ recipientEmail: managerEmail, notificationType: '批次 - 提名待核准提醒', messageText: `提醒核准 ${requesterName} 的 ${items[0].title}`, status: result ? 'sent' : 'failed', errorMessage: result ? undefined : 'Slack notification failed' });
+          if (result) sentCount++; else failedCount++;
         } catch (e: any) {
           await this.logNotification({ recipientEmail: managerEmail, notificationType: '批次 - 提名待核准提醒', messageText: `提醒核准 ${requesterName} 的 ${items[0].title}`, status: 'failed', errorMessage: e.message });
           failedCount++;
@@ -563,9 +566,9 @@ export const api = {
         
         const tasks = reviewerReminders[reviewerId].map(t => ({ requesterName: profileMap[t.requesterId]?.name || '同仁', title: t.title }));
         try {
-          await slackService.notifyReviewerOfPendingTasks(reviewer.email, tasks.length, tasks);
-          await this.logNotification({ recipientEmail: reviewer.email, notificationType: '批次 - 待處理任務提醒', messageText: `提醒完成 ${tasks.length} 項評量任務`, status: 'sent' });
-          sentCount++;
+          const result = await slackService.notifyReviewerOfPendingTasks(reviewer.email, tasks.length, tasks);
+          await this.logNotification({ recipientEmail: reviewer.email, notificationType: '批次 - 待處理任務提醒', messageText: `提醒完成 ${tasks.length} 項評量任務`, status: result ? 'sent' : 'failed', errorMessage: result ? undefined : 'Slack notification failed' });
+          if (result) sentCount++; else failedCount++;
         } catch (e: any) {
           await this.logNotification({ recipientEmail: reviewer.email, notificationType: '批次 - 待處理任務提醒', messageText: `提醒完成 ${tasks.length} 項評量任務`, status: 'failed', errorMessage: e.message });
           failedCount++;
@@ -603,9 +606,9 @@ export const api = {
           const reviewer = profileMap[reviewerId];
           if (!reviewer?.email) continue;
           try {
-            await slackService.notifyReviewerOfPendingTasks(reviewer.email, 1, [{ requesterName, title: n.title }]);
-            await this.logNotification({ recipientEmail: reviewer.email, notificationType: '手動推播 - 單一問卷催繳', messageText: `提醒完成 1 項評量任務: ${n.title}`, status: 'sent' });
-            sentCount++;
+            const result = await slackService.notifyReviewerOfPendingTasks(reviewer.email, 1, [{ requesterName, title: n.title }]);
+            await this.logNotification({ recipientEmail: reviewer.email, notificationType: '手動推播 - 單一問卷催繳', messageText: `提醒完成 1 項評量任務: ${n.title}`, status: result ? 'sent' : 'failed', errorMessage: result ? undefined : 'Slack notification failed' });
+            if (result) sentCount++; else failedCount++;
           } catch (e: any) {
             await this.logNotification({ recipientEmail: reviewer.email, notificationType: '手動推播 - 單一問卷催繳', messageText: `提醒完成 1 項評量任務: ${n.title}`, status: 'failed', errorMessage: e.message });
             failedCount++;
