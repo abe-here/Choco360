@@ -1,4 +1,4 @@
-# Nexus360 System Blueprint - v1.1.0 (Stable)
+# Nexus360 System Blueprint - v1.2.0 (Stable)
 
 ## 1. 系統定位
 Nexus360 是專為 **CHOCO Media Group** 打造的 360 度員工互評系統，旨在透過數據與 AI 驅動組織成長文化。

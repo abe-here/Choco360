@@ -73,9 +73,10 @@ test.describe('02. Admin Configuration - Comprehensive Tests', () => {
     });
 
     // Inject localStorage and wait for login
-    await page.addInitScript(() => {
-      window.localStorage.setItem('nexus360_user_email', 'admin@choco.media');
-    });
+    const ref = new URL(process.env.VITE_SUPABASE_URL || 'https://default.supabase.co').hostname.split('.')[0];
+    await page.addInitScript((projectRef) => {
+      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify({ user: { email: 'admin@choco.media' }, access_token: 'fake', expires_at: 9999999999 }));
+    }, ref);
 
     await page.goto('/');
     await page.click('text=控制中心');

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { User, Questionnaire, FeedbackEntry, FeedbackResponse, Nomination, AIAnalysis, SystemMessage } from '../types';
+import { User, Questionnaire, FeedbackEntry, FeedbackResponse, Nomination, AIAnalysis, SystemMessage, NotificationLog } from '../types';
 import { slackService } from './slackService';
 
 const ALLOWED_DOMAIN = '@choco.media';
@@ -7,9 +7,26 @@ const STORAGE_KEY = 'nexus360_user_email';
 
 export const api = {
   // --- Auth ---
-  async login(email: string): Promise<User> {
+  async loginWithGoogle(): Promise<void> {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+    if (error) throw error;
+  },
+
+  async getCurrentUser(): Promise<User | null> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) return null;
+
+    const email = session.user.email;
+    if (!email) return null;
+
     const cleanEmail = email.toLowerCase().trim();
     if (!cleanEmail.endsWith(ALLOWED_DOMAIN)) {
+      await supabase.auth.signOut();
       throw new Error('登入失敗，請確認您使用的是受信任的企業帳號。');
     }
 
@@ -19,17 +36,14 @@ export const api = {
       .eq('email', cleanEmail)
       .maybeSingle();
 
-    if (fetchError) throw fetchError;
-
-    if (!existing) {
+    if (fetchError || !existing) {
+      await supabase.auth.signOut();
       throw new Error('找不到您的帳號。請聯繫 HR 或系統管理員為您開通權限後再試。');
     }
 
     await supabase.from('profiles').update({
       updated_at: new Date().toISOString()
     }).eq('id', existing.id);
-
-    localStorage.setItem(STORAGE_KEY, cleanEmail);
 
     return { 
       id: existing.id, 
@@ -44,19 +58,8 @@ export const api = {
     } as User;
   },
 
-  async getCurrentUser(): Promise<User | null> {
-    const savedEmail = localStorage.getItem(STORAGE_KEY);
-    if (!savedEmail) return null;
-    try { 
-      return await this.login(savedEmail); 
-    } catch (err) { 
-      console.warn("Auto login failed", err);
-      return null; 
-    }
-  },
-
-  async logout() { 
-    localStorage.removeItem(STORAGE_KEY); 
+  async logout(): Promise<void> { 
+    await supabase.auth.signOut();
   },
 
   async getUsers(): Promise<User[]> {
@@ -224,18 +227,23 @@ export const api = {
       start_comments: entry.startComments || '',
       continue_comments: entry.continueComments || ''
     }).select().single();
-    
     if (fbError) throw fbError;
 
     // --- Slack Notification: Notify Recipient ---
     try {
       const { data: receiver } = await supabase.from('profiles').select('email').eq('id', entry.toUserId).single();
       if (receiver?.email) {
-        // Find title for context
         const { data: questionnaire } = await supabase.from('questionnaires').select('title').eq('id', entry.questionnaireId).single();
-        await slackService.notifyUserOfNewFeedback(receiver.email, questionnaire?.title || '360 評量');
+        const title = questionnaire?.title || '360 評量';
+        await slackService.notifyUserOfNewFeedback(receiver.email, title);
+        await this.logNotification({
+          recipientEmail: receiver.email,
+          notificationType: '自動推播 - 收到新回饋',
+          messageText: `通知收到新回饋: ${title}`,
+          status: 'sent'
+        });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn("Slack notification failed", e);
     }
 
@@ -383,15 +391,23 @@ export const api = {
       questionnaire_id: n.questionnaireId, 
       due_date: n.dueDate
     });
-    
     if (error) throw error;
 
-    // --- Slack Notification: Notify Manager ---
+    // --- Slack Notification: Notify Manager automatically ---
     try {
-      const { data: requester } = await supabase.from('profiles').select('name').eq('id', n.requesterId).single();
-      await slackService.notifyManagerOfNomination(n.managerId, requester?.name || '同仁', n.title || '360 評量');
-    } catch (e) {
+      const { data: requester, error: reqError } = await supabase.from('profiles').select('name').eq('id', n.requesterId).single();
+      if (!reqError) {
+        await slackService.notifyManagerOfNomination(n.managerId, requester?.name || '同仁', n.title || '360 評量');
+        await this.logNotification({
+          recipientEmail: n.managerId,
+          notificationType: '自動推播 - 提名待核准',
+          messageText: `提醒核准 ${requester?.name || '同仁'} 的 ${n.title || '360 評量'}`,
+          status: 'sent'
+        });
+      }
+    } catch (e: any) {
       console.warn("Slack notification failed", e);
+      await this.logNotification({ recipientEmail: n.managerId, notificationType: '自動推播 - 提名待核准', messageText: `提醒核准 ${n.title}`, status: 'failed', errorMessage: e.message });
     }
   },
 
@@ -415,7 +431,17 @@ export const api = {
           if (reviewers) {
             for (const reviewer of reviewers) {
               if (reviewer.email) {
-                await slackService.notifyReviewerOfNewTask(reviewer.email, requester?.name || '同仁', nom.title || '360 評量');
+                try {
+                  await slackService.notifyReviewerOfNewTask(reviewer.email, requester?.name || '同仁', nom.title || '360 評量');
+                  await this.logNotification({
+                    recipientEmail: reviewer.email,
+                    notificationType: '自動推播 - 新評量任務',
+                    messageText: `通知 ${requester?.name || '同仁'} 的新評量任務: ${nom.title || '360 評量'}`,
+                    status: 'sent'
+                  });
+                } catch(e: any) {
+                  await this.logNotification({ recipientEmail: reviewer.email, notificationType: '自動推播 - 新評量任務', messageText: `通知新評量任務: ${nom.title}`, status: 'failed', errorMessage: e.message });
+                }
               }
             }
           }
@@ -439,43 +465,50 @@ export const api = {
     if (error) throw error;
   },
 
+  // --- Notifications (Slack & Logging) ---
+  async getNotificationLogs(): Promise<NotificationLog[]> {
+    const { data, error } = await supabase.from('notification_logs').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data.map((l: any) => ({
+      id: l.id,
+      recipientEmail: l.recipient_email,
+      notificationType: l.notification_type,
+      messageText: l.message_text,
+      status: l.status,
+      errorMessage: l.error_message,
+      createdAt: l.created_at
+    }));
+  },
+
+  async logNotification(log: NotificationLog): Promise<void> {
+    const { error } = await supabase.from('notification_logs').insert({
+      recipient_email: log.recipientEmail,
+      notification_type: log.notificationType,
+      message_text: log.messageText,
+      status: log.status,
+      error_message: log.errorMessage
+    });
+    if (error) console.error("Failed to log notification:", error);
+  },
+
+  async clearNotificationLogs(): Promise<void> {
+    const { error } = await supabase.from('notification_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    if (error) throw error;
+  },
+
   /**
-   * 批次發送 Slack 提醒 (自動化)
-   * 檢查是否有：
-   * 1. 待審核的提名 (提醒主管)
-   * 2. 即將到期且未完成的評量 (提醒評量者)
-   * 
-   * 配合 localStorage 確保不會過於頻繁發送 (預設 7 天一次)
+   * 手動批次發送 Slack 提醒
    */
-  async checkAndSendBatchReminders(): Promise<void> {
-    const LAST_REMINDER_KEY = 'choco360_last_slack_reminder';
-    const REMINDER_DAYS = Number(import.meta.env.VITE_SLACK_REMINDER_DAYS || 7);
-    
-    const lastReminder = localStorage.getItem(LAST_REMINDER_KEY);
-    const now = new Date();
-    
-    if (lastReminder) {
-      const lastDate = new Date(lastReminder);
-      const diffTime = Math.abs(now.getTime() - lastDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      if (diffDays < REMINDER_DAYS) {
-        console.log(`[Slack] Skipping reminders. Last sent ${diffDays} days ago. (Interval: ${REMINDER_DAYS} days)`);
-        return;
-      }
-    }
-
-    console.group('🚀 [Slack Automatic Reminder] Starting batch process...');
+  async sendBatchReminders(): Promise<{ sent: number; failed: number }> {
+    console.group('🚀 [Slack Manual Batch Reminder] Starting process...');
+    let sentCount = 0;
+    let failedCount = 0;
     try {
-      // 1. 取得所有進行中的提名
-      const { data: nominations } = await supabase
-        .from('nominations')
-        .select('*')
-        .or('status.eq.Pending,status.eq.Approved');
-
+      const { data: nominations } = await supabase.from('nominations').select('*').or('status.eq.Pending,status.eq.Approved');
       if (!nominations || nominations.length === 0) {
         console.log('No active nominations found.');
         console.groupEnd();
-        return;
+        return { sent: 0, failed: 0 };
       }
 
       const { data: feedback } = await supabase.from('feedbacks').select('nomination_id, from_user_id');
@@ -487,12 +520,10 @@ export const api = {
 
       for (const n of nominations) {
         if (n.status === 'Pending') {
-          // 主管審核提醒
           if (!managerReminders[n.manager_email]) managerReminders[n.manager_email] = [];
           managerReminders[n.manager_email].push({ requesterId: n.requester_id, title: n.title });
           profilesToFetch.add(n.requester_id);
         } else if (n.status === 'Approved') {
-          // 評量者填寫提醒 (檢查是否快到期)
           const dueDate = n.due_date ? new Date(n.due_date) : null;
           const oneMonthFromNow = new Date();
           oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
@@ -510,34 +541,81 @@ export const api = {
         }
       }
 
-      // 取得所有相關姓名
       const { data: profiles } = await supabase.from('profiles').select('id, name, email').in('id', Array.from(profilesToFetch));
       const profileMap = (profiles || []).reduce((acc: any, p) => ({ ...acc, [p.id]: p }), {});
 
-      // 發送主管提醒
       for (const managerEmail in managerReminders) {
         const items = managerReminders[managerEmail];
         const requesterName = profileMap[items[0].requesterId]?.name || '同仁';
-        await slackService.notifyManagerOfNomination(managerEmail, requesterName, items[0].title);
+        try {
+          await slackService.notifyManagerOfNomination(managerEmail, requesterName, items[0].title);
+          await this.logNotification({ recipientEmail: managerEmail, notificationType: '批次 - 提名待核准提醒', messageText: `提醒核准 ${requesterName} 的 ${items[0].title}`, status: 'sent' });
+          sentCount++;
+        } catch (e: any) {
+          await this.logNotification({ recipientEmail: managerEmail, notificationType: '批次 - 提名待核准提醒', messageText: `提醒核准 ${requesterName} 的 ${items[0].title}`, status: 'failed', errorMessage: e.message });
+          failedCount++;
+        }
       }
 
-      // 發送評量者提醒
       for (const reviewerId in reviewerReminders) {
         const reviewer = profileMap[reviewerId];
         if (!reviewer?.email) continue;
         
-        const tasks = reviewerReminders[reviewerId].map(t => ({
-          requesterName: profileMap[t.requesterId]?.name || '同仁',
-          title: t.title
-        }));
-        await slackService.notifyReviewerOfPendingTasks(reviewer.email, tasks.length, tasks);
+        const tasks = reviewerReminders[reviewerId].map(t => ({ requesterName: profileMap[t.requesterId]?.name || '同仁', title: t.title }));
+        try {
+          await slackService.notifyReviewerOfPendingTasks(reviewer.email, tasks.length, tasks);
+          await this.logNotification({ recipientEmail: reviewer.email, notificationType: '批次 - 待處理任務提醒', messageText: `提醒完成 ${tasks.length} 項評量任務`, status: 'sent' });
+          sentCount++;
+        } catch (e: any) {
+          await this.logNotification({ recipientEmail: reviewer.email, notificationType: '批次 - 待處理任務提醒', messageText: `提醒完成 ${tasks.length} 項評量任務`, status: 'failed', errorMessage: e.message });
+          failedCount++;
+        }
       }
-
-      localStorage.setItem(LAST_REMINDER_KEY, now.toISOString());
-      console.log('[Slack] All batch reminders sent successfully.');
+      console.log('[Slack] Manual batch reminders process completed.');
     } catch (e) {
       console.error('[Slack] Failed to process batch reminders', e);
+      throw e;
     }
     console.groupEnd();
+    return { sent: sentCount, failed: failedCount };
+  },
+
+  /**
+   * 針對單一問卷發送催繳通知
+   */
+  async sendReminderForNomination(nominationId: string): Promise<{ sent: number; failed: number }> {
+    let sentCount = 0;
+    let failedCount = 0;
+    try {
+      const { data: n } = await supabase.from('nominations').select('*').eq('id', nominationId).single();
+      if (!n || n.status !== 'Approved') return { sent: 0, failed: 0 };
+
+      const { data: feedback } = await supabase.from('feedbacks').select('from_user_id').eq('nomination_id', nominationId);
+      const finishedIds = new Set((feedback || []).map((f: any) => f.from_user_id));
+      const missingIds = (n.reviewer_ids || []).filter((id: string) => !finishedIds.has(id));
+
+      if (missingIds.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('id, name, email').in('id', [...missingIds, n.requester_id]);
+        const profileMap = (profiles || []).reduce((acc: any, p: any) => ({ ...acc, [p.id]: p }), {});
+        const requesterName = profileMap[n.requester_id]?.name || '同仁';
+
+        for (const reviewerId of missingIds) {
+          const reviewer = profileMap[reviewerId];
+          if (!reviewer?.email) continue;
+          try {
+            await slackService.notifyReviewerOfPendingTasks(reviewer.email, 1, [{ requesterName, title: n.title }]);
+            await this.logNotification({ recipientEmail: reviewer.email, notificationType: '手動推播 - 單一問卷催繳', messageText: `提醒完成 1 項評量任務: ${n.title}`, status: 'sent' });
+            sentCount++;
+          } catch (e: any) {
+            await this.logNotification({ recipientEmail: reviewer.email, notificationType: '手動推播 - 單一問卷催繳', messageText: `提醒完成 1 項評量任務: ${n.title}`, status: 'failed', errorMessage: e.message });
+            failedCount++;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[Slack] Failed to send reminder for nomination', e);
+      throw e;
+    }
+    return { sent: sentCount, failed: failedCount };
   }
 };

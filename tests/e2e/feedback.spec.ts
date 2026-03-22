@@ -112,9 +112,10 @@ test.describe('05. Feedback Execution Flow', () => {
     });
 
     // Inject localStorage for auto-login
-    await page.addInitScript(() => {
-      window.localStorage.setItem('nexus360_user_email', 'employee@choco.media');
-    });
+    const ref = new URL(process.env.VITE_SUPABASE_URL || 'https://default.supabase.co').hostname.split('.')[0];
+    await page.addInitScript((projectRef) => {
+      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify({ user: { email: 'employee@choco.media' }, access_token: 'fake', expires_at: 9999999999 }));
+    }, ref);
 
     await page.goto('/');
     // 等待 Dashboard 載入完成

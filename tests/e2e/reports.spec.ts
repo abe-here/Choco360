@@ -190,9 +190,10 @@ test.describe('06. Reports & AI Coach', () => {
     });
 
     // Auth
-    await page.addInitScript(() => {
-      window.localStorage.setItem('nexus360_user_email', 'employee@choco.media');
-    });
+    const ref = new URL(process.env.VITE_SUPABASE_URL || 'https://default.supabase.co').hostname.split('.')[0];
+    await page.addInitScript((projectRef) => {
+      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify({ user: { email: 'employee@choco.media' }, access_token: 'fake', expires_at: 9999999999 }));
+    }, ref);
 
     await page.goto('/');
     await expect(page.locator('h1:has-text("歡迎使用 Choco360 👋")')).toBeVisible({ timeout: 10000 });

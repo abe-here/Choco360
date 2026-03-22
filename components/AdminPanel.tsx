@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { User, Questionnaire, Nomination, FeedbackEntry, QuestionType } from '../types';
+import { User, Questionnaire, Nomination, FeedbackEntry, QuestionType, NotificationLog } from '../types';
 import { api } from '../services/api';
 import { slackService } from '../services/slackService';
 
@@ -11,8 +11,48 @@ interface AdminPanelProps {
   setQuestionnaires: React.Dispatch<React.SetStateAction<Questionnaire[]>>;
 }
 
+function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) return '剛剛';
+  if (diffMin < 60) return `${diffMin} 分鐘前`;
+  if (diffHour < 24) return `${diffHour} 小時前`;
+  if (diffDay < 7) return `${diffDay} 天前`;
+  return date.toLocaleDateString();
+}
+
+function parseNotificationGroup(text: string): string {
+  const cleanStr = text.replace(/^\[重新發送失敗\] /, '').replace(/^\[重新發送\] /, '').trim();
+  let match;
+  
+  if ((match = cleanStr.match(/提醒核准 (.+) 的 (.+)/))) {
+    return `${match[1]} - ${match[2]}`;
+  }
+  if ((match = cleanStr.match(/通知 (.+) 的新評量任務: (.+)/))) {
+    return `${match[1]} - ${match[2]}`;
+  }
+  if ((match = cleanStr.match(/通知收到新回饋: (.+)/))) {
+    return match[1];
+  }
+  if ((match = cleanStr.match(/提醒完成 \d+ 項評量任務: (.+)/))) {
+    return match[1];
+  }
+  if ((match = cleanStr.match(/提醒核准 (.+)/))) {
+    return match[1];
+  }
+  if (cleanStr.includes('項評量任務')) {
+    return '批次綜合評量提醒'; 
+  }
+  return '未分類系統通知';
+}
+
 const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires, setQuestionnaires }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'activity' | 'users' | 'forms' | 'system'>('activity');
+  const [activeSubTab, setActiveSubTab] = useState<'activity' | 'users' | 'forms' | 'system' | 'notifications'>('activity');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('All');
   
@@ -48,6 +88,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
   // --- 系統資訊狀態 ---
   const [versionData, setVersionData] = useState<string>('');
 
+  // --- 通知管理狀態 ---
+  const [notificationLogs, setNotificationLogs] = useState<NotificationLog[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [isSendingBatch, setIsSendingBatch] = useState(false);
+  const [sendingTarget, setSendingTarget] = useState<string | null>(null);
+  const [expandedLogGroups, setExpandedLogGroups] = useState<Set<string>>(new Set());
+
   // --- 常數定義 ---
   const DEPARTMENTS = ['Product', 'Data', 'Marketing', 'Content', 'HR/ADM', 'AVOD', 'Finance'];
   const ROLES = ['PM', 'Designer', 'Developer', 'QA', 'IT', 'DA/DE', 'CS', 'Content', 'HR/ADM', 'AVOD', 'Marketing', 'Finance'];
@@ -56,10 +103,123 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
     return users.filter(u => u.isManager || u.isSystemAdmin).sort((a, b) => a.name.localeCompare(b.name));
   }, [users]);
 
+  const groupedLogs = useMemo(() => {
+    const groups: Record<string, NotificationLog[]> = {};
+    notificationLogs.forEach(log => {
+      const groupName = parseNotificationGroup(log.messageText);
+      if (!groups[groupName]) groups[groupName] = [];
+      groups[groupName].push(log);
+    });
+    
+    return Object.keys(groups).map(name => {
+      const logs = groups[name].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      return {
+        id: name,
+        title: name,
+        latestTime: new Date(logs[0].createdAt || 0),
+        logs
+      };
+    }).sort((a, b) => b.latestTime.getTime() - a.latestTime.getTime());
+  }, [notificationLogs]);
+
+  const toggleLogGroup = (groupId: string) => {
+    setExpandedLogGroups(prev => {
+       const next = new Set(prev);
+       if (next.has(groupId)) next.delete(groupId);
+       else next.add(groupId);
+       return next;
+    });
+  };
+
   useEffect(() => {
     fetchActivityData();
     fetchVersionData();
+    fetchLogs();
   }, []);
+
+  const fetchLogs = async () => {
+    setIsLoadingLogs(true);
+    try {
+      const logs = await api.getNotificationLogs();
+      setNotificationLogs(logs || []);
+    } catch {
+      // 忽略錯誤
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
+
+  const handleSendBatchReminders = async () => {
+    if (!window.confirm("確定要手動觸發全局的批次通知催繳嗎？這將會掃描所有未完成的任務並發送提醒。")) return;
+    setIsSendingBatch(true);
+    try {
+      const res = await api.sendBatchReminders();
+      alert(`✅ 批次發送完成！\n成功: ${res.sent} 筆\n失敗: ${res.failed} 筆`);
+      await fetchLogs();
+    } catch (e: any) {
+      alert(`批次發送失敗: ${e.message}`);
+    } finally {
+      setIsSendingBatch(false);
+    }
+  };
+
+  const handleSendSingleReminder = async (nom: any) => {
+    if (!window.confirm(`確定要針對「${nom.title}」發送催繳通知嗎？這會提醒所有尚未填寫的人。`)) return;
+    setSendingTarget(nom.id);
+    try {
+      const res = await api.sendReminderForNomination(nom.id);
+      alert(`✅ 單一表單催繳發送完成！\n成功: ${res.sent} 筆\n失敗: ${res.failed} 筆`);
+      await fetchLogs();
+    } catch (e: any) {
+      alert(`發送失敗: ${e.message}`);
+    } finally {
+      setSendingTarget(null);
+    }
+  };
+
+  const handleClearLogs = async () => {
+    if (!window.confirm("確定要清空所有發送紀錄嗎？此操作不可復原。")) return;
+    try {
+      await api.clearNotificationLogs();
+      setNotificationLogs([]);
+      alert('已清空歷史紀錄。');
+    } catch (e: any) {
+      alert(`清空失敗: ${e.message}`);
+    }
+  };
+
+  const resendLog = async (log: NotificationLog) => {
+    try {
+       // Just reuse the api logic to send based on log content
+       // We can simply call slackService with basic payload
+       await slackService.sendDirectMessageByEmail(log.recipientEmail, { text: `[重新發送] ${log.messageText}` });
+       await api.logNotification({ ...log, status: 'sent', messageText: `[重新發送] ${log.messageText}`, createdAt: undefined, id: undefined });
+       alert('重新發送成功！');
+       fetchLogs();
+    } catch (e: any) {
+       await api.logNotification({ ...log, status: 'failed', errorMessage: e.message, messageText: `[重新發送失敗] ${log.messageText}`, createdAt: undefined, id: undefined });
+       alert(`重新發送失敗: ${e.message}`);
+       fetchLogs();
+    }
+  };
+
+  const sendManualNotification = async (type: string, email: string, requesterName: string, title: string) => {
+    try {
+      if (type === 'manager_approval') {
+        await slackService.notifyManagerOfNomination(email, requesterName, title);
+        await api.logNotification({ recipientEmail: email, notificationType: '手動推播 - 主管核准要求', messageText: `提醒核准 ${requesterName} 的 ${title}`, status: 'sent' });
+      } else if (type === 'reviewer_task') {
+        await slackService.notifyReviewerOfPendingTasks(email, 1, [{ requesterName, title }]);
+        await api.logNotification({ recipientEmail: email, notificationType: '手動推播 - 評量任務提醒', messageText: `提醒完成 1 項評量任務: ${title}`, status: 'sent' });
+      }
+      alert('已成功發送 Slack 通知！');
+      fetchLogs();
+    } catch (e: any) {
+      alert(`發送失敗: ${e.message}`);
+      await api.logNotification({ recipientEmail: email, notificationType: type === 'manager_approval' ? '手動推播 - 主管核准要求' : '手動推播 - 評量任務提醒', messageText: `提醒 ${title}`, status: 'failed', errorMessage: e.message });
+      fetchLogs();
+    }
+  };
 
   const fetchVersionData = async () => {
     try {
@@ -239,13 +399,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
           </h2>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">監控所有進行中的評鑑週期</p>
         </div>
-        <button 
-          onClick={fetchActivityData} 
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600 hover:border-indigo-600 transition-all shadow-sm"
-        >
-          <svg className={`w-3.5 h-3.5 ${isLoadingActivity ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          重新整理數據
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={handleSendBatchReminders} 
+            disabled={isSendingBatch}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-sm disabled:opacity-50"
+          >
+            {isSendingBatch ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>}
+            發送待處理統整提醒
+          </button>
+          <button 
+            onClick={fetchActivityData} 
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600 hover:border-indigo-600 transition-all shadow-sm"
+          >
+            <svg className={`w-3.5 h-3.5 ${isLoadingActivity ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            重新整理數據
+          </button>
+        </div>
       </div>
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden min-h-[400px]">
         <div className="overflow-x-auto">
@@ -304,6 +474,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                     </td>
                     <td className="px-8 py-6 text-right">
                       <div className="flex justify-end gap-2">
+                        {nom.status === 'Approved' && nom.respondedCount < nom.totalExpected && (
+                          <button 
+                            disabled={sendingTarget === nom.id}
+                            onClick={() => handleSendSingleReminder(nom)} 
+                            className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shadow-sm disabled:opacity-50" 
+                            title="催促此表單未完成者"
+                          >
+                            {sendingTarget === nom.id ? <span className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin block"></span> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>}
+                          </button>
+                        )}
                         <button onClick={() => { setSelectedNomination(nom); setIsManageDrawerOpen(true); }} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shadow-sm" title="調整名單與移轉主管"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg></button>
                         <button onClick={() => { setNominationToDelete(nom); setIsDeleteDrawerOpen(true); }} className="p-2.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm" title="刪除問卷"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1h-4a1 1 0 00-1-1v3M4 7h16" /></svg></button>
                       </div>
@@ -737,6 +917,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                     {selfFinished ? '已繳卷' : '待填寫'}
                   </span>
                 </div>
+                {selectedNomination.status === 'Pending' && (
+                  <button onClick={() => sendManualNotification('manager_approval', selectedNomination.managerId, users.find(u=>u.id===selectedNomination.requesterId)?.name || '同仁', selectedNomination.title)} className="w-full py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-black text-xs hover:bg-amber-100 transition-all">
+                    催促主管進行核准
+                  </button>
+                )}
              </div>
 
              <div className="space-y-4">
@@ -797,7 +982,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                        <div className="flex items-center gap-2 shrink-0">
                          {!isFinished && (
                             <button 
-                              onClick={() => alert(`已發送提醒電子郵件給 ${u?.name || rid}！`)}
+                              onClick={() => {
+                                const requester = users.find(u=>u.id===selectedNomination.requesterId)?.name || '同仁';
+                                sendManualNotification('reviewer_task', u?.email || rid, requester, selectedNomination.title);
+                              }}
                               className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shadow-sm"
                               title="催促繳卷"
                             >
@@ -916,7 +1104,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
             </div>
           </div>
 
-          {/* 右側：版本更新資訊 (大約 65% 寬) */}
+           {/* 右側：版本更新資訊 (大約 65% 寬) */}
           <div className="w-full md:w-7/12">
             <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl overflow-hidden h-full">
               <div className="p-6 border-b border-slate-100 bg-emerald-50 flex items-center gap-4">
@@ -962,12 +1150,143 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
     );
   };
 
+  const renderNotificationManagement = () => (
+    <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-4 border-b border-slate-200 pb-6">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+            <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+            Slack 通知日誌
+          </h2>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">檢視與管理所有已觸發的系統通知紀錄</p>
+        </div>
+        <div className="flex gap-3">
+          <button 
+            onClick={handleClearLogs} 
+            className="px-6 py-3 bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 rounded-xl font-black text-xs transition-all shadow-sm"
+          >
+            清空歷史紀錄
+          </button>
+          <button 
+            onClick={handleSendBatchReminders} 
+            disabled={isSendingBatch}
+            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
+          >
+            {isSendingBatch ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : null}
+            手動觸發全局批次催繳
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden min-h-[400px]">
+        {notificationLogs.length === 0 ? (
+          <div className="p-24 text-center">
+            <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4">
+               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+            </div>
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">目前沒有任何通知紀錄</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest pl-8">發送時間</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">收件人</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">類型</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">狀態</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">訊息摘要</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right pr-8">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {groupedLogs.map((group) => {
+                  const isExpanded = expandedLogGroups.has(group.id);
+                  const latestLog = group.logs[0];
+                  return (
+                    <React.Fragment key={group.id}>
+                      <tr 
+                        onClick={() => toggleLogGroup(group.id)}
+                        className="hover:bg-slate-50/50 transition-colors cursor-pointer group"
+                      >
+                        <td className="px-6 py-5 pl-8 border-l-4 border-transparent group-hover:border-indigo-500" colSpan={6}>
+                          <div className="flex items-center justify-between w-full pr-2">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <span className="text-slate-400 shrink-0">
+                                <svg className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                              </span>
+                              <p className="text-sm font-black text-indigo-900 break-words">{group.title}</p>
+                              <span className="shrink-0 text-[10px] font-black text-slate-500 bg-slate-100 px-2.5 py-1 rounded uppercase tracking-widest hidden sm:block ml-2">
+                                共 {group.logs.length} 則通知
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-4 shrink-0 pl-4">
+                              <p className="text-xs text-slate-500 font-medium hidden lg:block">最新: {latestLog.messageText.substring(0, 50)}{latestLog.messageText.length > 50 ? '...' : ''}</p>
+                              <p className="text-xs/none font-bold text-slate-400">{formatRelativeTime(group.latestTime)}</p>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && group.logs.map((log) => (
+                        <tr key={log.id} className="bg-slate-50/30 hover:bg-slate-50 transition-colors border-t border-dashed border-slate-100">
+                          <td className="px-6 py-4 pl-14">
+                             <p className="text-xs font-bold text-slate-500">{new Date(log.createdAt || '').toLocaleString()}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                             <p className="text-xs font-black text-slate-700 border border-slate-200 bg-white px-2 py-1 rounded-lg inline-block shadow-sm break-all">{log.recipientEmail}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                             <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded w-fit">{log.notificationType}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                             {log.status === 'sent' ? (
+                               <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded w-fit uppercase tracking-widest">
+                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>成功
+                               </span>
+                             ) : (
+                               <span className="flex items-center gap-1.5 text-[10px] font-black text-rose-600 bg-rose-50 px-2.5 py-1 rounded w-fit uppercase tracking-widest">
+                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>失敗
+                               </span>
+                             )}
+                          </td>
+                          <td className="px-6 py-4">
+                             <div className="text-xs text-slate-600 font-medium break-words max-w-md">
+                                {log.messageText}
+                             </div>
+                             {log.status === 'failed' && log.errorMessage && (
+                               <p className="text-[9px] text-rose-500 font-bold mt-1 break-words max-w-md">錯誤: {log.errorMessage}</p>
+                             )}
+                          </td>
+                          <td className="px-6 py-4 text-right pr-8">
+                             <button onClick={() => resendLog(log)} className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 font-black text-[10px] uppercase tracking-widest rounded-lg shadow-sm transition-all focus:ring-4 focus:ring-slate-100">
+                               重發
+                             </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 relative">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl">
         <div><h1 className="text-3xl font-black text-white tracking-tight">系統控制中心</h1><p className="text-slate-400 font-bold mt-1 uppercase text-[10px] tracking-[0.2em]">Choco360 Control v2.10</p></div>
         <div className="flex bg-white/10 p-1.5 rounded-2xl backdrop-blur-md overflow-x-auto scrollbar-hide">
-          {[ { id: 'activity', label: '活動監控' }, { id: 'users', label: '員工管理' }, { id: 'forms', label: '問卷設計' }, { id: 'system', label: '系統資訊' } ].map((tab) => (
+          {[ 
+            { id: 'activity', label: '活動監控' }, 
+            { id: 'users', label: '員工管理' }, 
+            { id: 'forms', label: '問卷設計' }, 
+            { id: 'notifications', label: '通知管理' }, 
+            { id: 'system', label: '系統資訊' } 
+          ].map((tab) => (
             <button key={tab.id} onClick={() => setActiveSubTab(tab.id as any)} className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${activeSubTab === tab.id ? 'bg-white text-slate-900 shadow-xl' : 'text-white hover:bg-white/5'}`}>{tab.label}</button>
           ))}
         </div>
@@ -976,6 +1295,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
       {activeSubTab === 'activity' && renderActivityMonitoring()}
       {activeSubTab === 'users' && renderUserManagement()}
       {activeSubTab === 'forms' && renderFormManagement()}
+      {activeSubTab === 'notifications' && renderNotificationManagement()}
       {activeSubTab === 'system' && renderSystemInfo()}
 
       {renderUserEditor()}

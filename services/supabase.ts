@@ -15,7 +15,32 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 解決 supabase-js 在多頁籤或 React Strict Mode 下「偷取鎖定 (steal lock)」的錯誤
+const memoryLocks: Record<string, Promise<void>> = {};
+
+const memoryLock = async (name: string, acquireTimeout: number, fn: () => Promise<any>) => {
+  let release: () => void;
+  const acquire = new Promise<void>(resolve => { release = resolve; });
+
+  const previous = memoryLocks[name];
+  memoryLocks[name] = (previous || Promise.resolve()).then(() => acquire);
+
+  if (previous) {
+    await previous.catch(() => {});
+  }
+
+  try {
+    return await fn();
+  } finally {
+    release!();
+  }
+};
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    lock: memoryLock
+  }
+});
 
 export const checkSupabaseConnection = async (): Promise<{ connected: boolean; error: string | null }> => {
   try {

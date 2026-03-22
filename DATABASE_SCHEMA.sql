@@ -143,3 +143,14 @@ INSERT INTO public.questions (dimension_id, text, question_type)
 SELECT id, '[心理安全感] 他/她是否專注於解決問題而非指責個人？', 'rating' FROM dim
 UNION ALL
 SELECT id, '請舉例說明他/她在過去三個月內，如何協助團隊解決突發危機？', 'text' FROM dim;
+
+-- [11] 通知紀錄 (Slack Notification Logs)
+CREATE TABLE public.notification_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipient_email TEXT NOT NULL,
+    notification_type TEXT NOT NULL,
+    message_text TEXT,
+    status TEXT DEFAULT 'sent',
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);

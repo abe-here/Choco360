@@ -12,6 +12,13 @@ test.describe('04. Nomination Flow', () => {
         });
         return;
       }
+      if (request.url().includes('id=eq.')) {
+        await route.fulfill({
+          status: 200,
+          json: [{ id: 'emp-1', name: 'Employee A', email: 'employee@choco.media', role: 'Developer', department: 'Product', is_manager: false }]
+        });
+        return;
+      }
       await route.fulfill({
         status: 200,
         json: [
@@ -20,6 +27,11 @@ test.describe('04. Nomination Flow', () => {
           { id: 'emp-3', name: 'Charlie', email: 'charlie@choco.media', role: 'HR', department: 'HR/ADM', is_manager: false }
         ]
       });
+    });
+
+    // Mock Slack API to prevent real messages
+    await page.route('**/api/slack/**', async (route) => {
+      await route.fulfill({ status: 200, json: { ok: true } });
     });
 
     await page.route('**/*/rest/v1/questionnaires*', async (route) => {
@@ -41,9 +53,10 @@ test.describe('04. Nomination Flow', () => {
     });
 
     // Inject localStorage and wait for login
-    await page.addInitScript(() => {
-      window.localStorage.setItem('nexus360_user_email', 'employee@choco.media');
-    });
+    const ref = new URL(process.env.VITE_SUPABASE_URL || 'https://default.supabase.co').hostname.split('.')[0];
+    await page.addInitScript((projectRef) => {
+      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify({ user: { email: 'employee@choco.media' }, access_token: 'fake', expires_at: 9999999999 }));
+    }, ref);
 
     await page.goto('/');
     
@@ -95,6 +108,13 @@ test.describe('04. Nomination Flow', () => {
         });
         return;
       }
+      if (request.url().includes('id=eq.')) {
+        await route.fulfill({
+          status: 200,
+          json: [{ id: 'emp-1', name: 'Employee A', email: 'employee@choco.media', role: 'Developer', department: 'Product', is_manager: false }]
+        });
+        return;
+      }
       await route.fulfill({
         status: 200,
         json: [
@@ -103,6 +123,11 @@ test.describe('04. Nomination Flow', () => {
           { id: 'emp-3', name: 'Charlie', email: 'charlie@choco.media', role: 'HR', department: 'HR/ADM', is_manager: false }
         ]
       });
+    });
+
+    // Mock Slack API to prevent real messages
+    await page.route('**/api/slack/**', async (route) => {
+      await route.fulfill({ status: 200, json: { ok: true } });
     });
 
     await page.route('**/*/rest/v1/nominations*', async (route, request) => {
@@ -123,9 +148,10 @@ test.describe('04. Nomination Flow', () => {
     });
 
     // Inject localStorage and wait for login
-    await page.addInitScript(() => {
-      window.localStorage.setItem('nexus360_user_email', 'manager@choco.media');
-    });
+    const ref = new URL(process.env.VITE_SUPABASE_URL || 'https://default.supabase.co').hostname.split('.')[0];
+    await page.addInitScript((projectRef) => {
+      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify({ user: { email: 'manager@choco.media' }, access_token: 'fake', expires_at: 9999999999 }));
+    }, ref);
 
     await page.goto('/');
     

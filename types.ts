@@ -88,3 +88,15 @@ export interface SystemMessage {
   content: string;
   createdAt: string;
 }
+
+export type NotificationStatus = 'sent' | 'failed';
+
+export interface NotificationLog {
+  id?: string;
+  recipientEmail: string;
+  notificationType: string;
+  messageText: string;
+  status: NotificationStatus;
+  errorMessage?: string;
+  createdAt?: string;
+}
