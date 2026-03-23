@@ -303,6 +303,16 @@ export const api = {
     })) as FeedbackEntry[];
   },
 
+  async getFeedbacksByNominationIds(nominationIds: string[]): Promise<{ nominationId: string, fromUserId: string }[]> {
+    if (!nominationIds || nominationIds.length === 0) return [];
+    const { data, error } = await supabase
+      .from('feedbacks')
+      .select('nomination_id, from_user_id')
+      .in('nomination_id', nominationIds);
+    if (error) throw error;
+    return (data || []).map(d => ({ nominationId: d.nomination_id, fromUserId: d.from_user_id }));
+  },
+
   // --- Nominations ---
   async getAllNominations(): Promise<Nomination[]> {
     const { data } = await supabase.from('nominations').select('*').order('created_at', { ascending: false });

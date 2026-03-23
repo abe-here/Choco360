@@ -125,7 +125,7 @@ test.describe('03. Profile & Onboarding - Comprehensive Tests', () => {
 
   // ─────────────── Dashboard Tests ───────────────
 
-  test('總覽面板應正確顯示歡迎詞、IC 權限徽章、與三大數據指標', async ({ page }) => {
+  test('總覽面板應正確顯示歡迎詞、IC 權限徽章、與評鑑進度追蹤', async ({ page }) => {
     // 歡迎詞
     await expect(page.locator('h1:has-text("歡迎使用 Choco360 👋")')).toBeVisible();
 
@@ -134,16 +134,12 @@ test.describe('03. Profile & Onboarding - Comprehensive Tests', () => {
 
     const main = page.locator('main');
 
-    // 待填寫評價 = 2（nom-2、nom-3 均為 Approved 且 Alice 是 reviewer，from_user 返回空所以都算 pending）
-    await expect(main.locator('p:has-text("待填寫評價") + p', { hasText: '2' })).toBeVisible();
-    await expect(main.locator('text=尚有 2 份專業回饋待處理')).toBeVisible();
-
-    // 收到回饋數 = 3
-    await expect(main.locator('p:has-text("收到回饋數") + p', { hasText: '3' })).toBeVisible();
-
-    // 邀請函審核狀態: Pending，由 Abraham Admin 審核
-    await expect(main.locator('p', { hasText: '主管審核中' })).toBeVisible();
-    await expect(main.locator('text=由 Abraham Admin 審核中')).toBeVisible();
+    // 新的追蹤組件
+    await expect(main.locator('h2:has-text("我發起的評鑑進度")')).toBeVisible();
+    await expect(main.locator('div:has-text("Alice 同儕 360")').first()).toBeVisible();
+    await expect(main.locator('span:has-text("主管審核中")').first()).toBeVisible();
+    await expect(main.locator('span:has-text("尚未發送邀請")')).toBeVisible();
+    await expect(main.locator('button:has-text("提醒主管")')).toBeVisible();
   });
 
   test('總覽面板應正確渲染 IC 的智慧流程導引與待辦任務', async ({ page }) => {
@@ -158,7 +154,7 @@ test.describe('03. Profile & Onboarding - Comprehensive Tests', () => {
     await expect(main.locator('h2', { hasText: '需完成的評鑑任務' })).toBeVisible();
     await expect(main.locator('text=Bob Jones')).toBeVisible();
     await expect(main.locator('text=Bob Q1 Review')).toBeVisible();
-    await expect(main.locator('p.font-black:has-text("Abraham Admin")').first()).toBeVisible();
+    await expect(main.locator('p.font-bold:has-text("Abraham Admin")').first()).toBeVisible();
     await expect(main.locator('text=Admin Annual Review')).toBeVisible();
     await expect(main.locator('button', { hasText: '開始評鑑' })).toHaveCount(2);
   });
