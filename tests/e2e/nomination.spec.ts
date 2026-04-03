@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../coverage-fixtures';
 
 test.describe('04. Nomination Flow', () => {
 

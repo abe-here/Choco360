@@ -10,6 +10,8 @@ lerna-debug.log*
 # Test artifacts
 playwright-report/
 test-results/
+monocart-report/
+coverage-unit/
 
 node_modules
 dist

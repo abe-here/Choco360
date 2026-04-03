@@ -12,7 +12,24 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1, // 資料庫共享時，建議單線程執行
-  reporter: 'html',
+  reporter: [
+    ['html'],
+    ['monocart-reporter', {
+      name: 'Choco360 Coverage Report',
+      outputDir: './playwright-report',
+      reports: [
+        ['v8'],
+        ['console-details'],
+        'istanbul'
+      ],
+      coverage: {
+        entryFilter: (entry) => entry.url.indexOf('localhost:3000') !== -1,
+        sourceFilter: (sourcePath) => sourcePath.search(/node_modules|tests/) === -1,
+        lcov: true,
+        html: true
+      }
+    }]
+  ],
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
@@ -30,5 +47,8 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',
     stderr: 'pipe',
+    env: {
+      VITE_COVERAGE: 'true',
+    },
   },
 });
