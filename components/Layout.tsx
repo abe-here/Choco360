@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { User } from '../types';
+import VersionHistory from './VersionHistory';
+import changelogData from '../changelog.json';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,6 +13,10 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user, onLogout, isDbConnected }) => {
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const latestVersion = changelogData[0]?.version || '0.0.0';
+  const latestDate = changelogData[0]?.date || '';
+
   const menuItems = [
     { id: 'dashboard', label: '總覽面版', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
     { id: 'nomination', label: '邀請反饋', icon: 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z' },
@@ -67,6 +73,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
           ))}
         </nav>
 
+
         <div className="p-6 mt-auto">
           <div className="flex items-center gap-3 p-4 bg-slate-900 rounded-3xl shadow-2xl group relative overflow-hidden">
             <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-xl border-2 border-slate-800 flex-shrink-0" />
@@ -85,6 +92,14 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
             </button>
           </div>
         </div>
+        <button 
+          onClick={() => setShowVersionHistory(true)}
+          className="pb-6 px-8 w-full flex items-center justify-center gap-2 text-[9px] font-bold text-slate-400 hover:text-indigo-500 transition-colors uppercase tracking-[0.2em] group"
+        >
+          <span>v{latestVersion}</span>
+          <span className="w-1 h-1 rounded-full bg-slate-200 group-hover:bg-indigo-300"></span>
+          <span>Updated {latestDate}</span>
+        </button>
       </aside>
 
       <main className="flex-1 ml-72 p-12">
@@ -92,6 +107,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
           {children}
         </div>
       </main>
+      <VersionHistory isOpen={showVersionHistory} onClose={() => setShowVersionHistory(false)} />
     </div>
   );
 };

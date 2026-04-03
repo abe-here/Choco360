@@ -1,0 +1,81 @@
+[
+  {
+    "version": "1.4.0",
+    "date": "2026-04-03",
+    "summary": "持久化版本歷史與 UI 細節優化 (Persistent History & UI Polish)",
+    "changes": [
+      "建立結構化 changelog.json 作為版本歷史的單一事實來源",
+      "新增 VersionHistory 互動式側邊抽屜，提升產品成長透明度",
+      "優化側邊欄設計：將版本資訊移至底部 footer 並整合『最後更新日期』",
+      "清理行政控制中心：移除冗餘的系統資訊分頁，整合至新版歷程 UI",
+      "自動化發布流程：更新 /release 工作流以確保 changelog.json 同步更新"
+    ]
+  },
+  {
+    "version": "1.3.2",
+    "date": "2026-04-03",
+    "summary": "測試架構全面升級 (Full Test Coverage Upgrade)",
+    "changes": [
+      "導入 Vitest 單元測試：針對 AI 分析、Slack 通知與 API 核心層進行 Mock 測試",
+      "全專案覆蓋率監控：實現 Playwright (E2E) 與 Vitest (Unit) 的覆蓋率收集",
+      "品質保障優化：修復了 updateUser 方法中的邊界邏輯錯誤"
+    ]
+  },
+  {
+    "version": "1.3.1",
+    "date": "2026-03-25",
+    "summary": "AI 分析功能修復",
+    "changes": [
+      "修正 geminiService.ts 模型名稱：從 gemini-2.5-flash 還原為 1.5-flash"
+    ]
+  },
+  {
+    "version": "1.3.0",
+    "date": "2026-03-24",
+    "summary": "進度追蹤儀表板 (Progress Tracking) 上線",
+    "changes": [
+      "新增專屬進度追蹤區塊，取代頂部數據卡段",
+      "實作動態狀態流轉：收集中、主管審核中、已結案",
+      "UI/UX 優化：首頁自動轉換 Onboarding 引導畫面"
+    ]
+  },
+  {
+    "version": "1.2.1",
+    "date": "2026-03-22",
+    "summary": "Slack 互動體驗修復",
+    "changes": [
+      "轉換 Slack 通知按鈕為 Markdown 連結，解決 405 錯誤",
+      "修正 Production 環境連結導向邏輯"
+    ]
+  },
+  {
+    "version": "1.2.0",
+    "date": "2026-03-22",
+    "summary": "登入機制全面重構 (Auth Migration)",
+    "changes": [
+      "轉移至 Supabase Native OAuth 後端驗證",
+      "優化 Slack 通知日誌 UI，導入群組化與摺疊顯示",
+      "修復主管審核通知 Email 欄位錯誤"
+    ]
+  },
+  {
+    "version": "1.1.0",
+    "date": "2026-03-15",
+    "summary": "Slack 整合與 AI 建議優化",
+    "changes": [
+      "恢復自動定期提醒機制，確保流程自動化",
+      "優化 AI Growth Coach JSON 拆解邏輯",
+      "新增 Playwright E2E 測試涵蓋關鍵流程"
+    ]
+  },
+  {
+    "version": "1.0.0",
+    "date": "2026-03-15",
+    "summary": "Choco360 基礎架構上線",
+    "changes": [
+      "基礎 CRUD 與狀態管理實作",
+      "Google 企業信箱登入 (SSO) 整合",
+      "Gemini AI 報告生成模組上線"
+    ]
+  }
+]

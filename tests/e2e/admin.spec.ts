@@ -177,15 +177,5 @@ test.describe('02. Admin Configuration - Comprehensive Tests', () => {
     await expect(page.locator('h2:has-text("編輯問卷架構")')).toBeVisible();
   });
 
-  test('系統資訊 (System Information) 應顯示正確開發者資訊', async ({ page }) => {
-    await page.click('button:has-text("系統資訊")');
-
-    await expect(page.locator('text=系統備份')).not.toBeVisible();
-    
-    const mainArea = page.locator('main');
-    await expect(mainArea.locator('text=開發團隊')).toBeVisible();
-    await expect(mainArea.locator('text=Abraham Chien')).toBeVisible();
-    await expect(mainArea.locator('text=版本更新資訊')).toBeVisible();
-  });
 
 });
