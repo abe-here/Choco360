@@ -46,6 +46,11 @@ export const analyzeFeedback = async (feedbacks: FeedbackEntry[], questionnaire:
     2. strengths: 結合數據與文字證據，提取 3 項具體優勢。
     3. growthAreas: 結合負面回饋或建議，提取 2 項改進建議。
     4. actionPlan: 提供 3 個具體的未來季度行動步驟。
+    5. superpowers: 綜合所有正面回饋，為該員工提煉出最多 3 個「超能力稱號」(Superpowers)。
+       每個超能力需要：
+       - title: 英文大寫的稱號，例如 "THE SYNERGY ARCHITECT", "THE CODE SORCERER", "THE EMPATHY HEALER" 等具史詩感與榮譽感的稱號。
+       - category: 只能是 "strategic" (戰略、邏輯、問題解決), "support" (支援、協作、情緒價值), 或 "leadership" (領導、視野、影響力) 其中之一。
+       - description: 繁體中文一小段描述為何獲得此稱號。
   `;
 
   const response = await ai.models.generateContent({
@@ -60,9 +65,21 @@ export const analyzeFeedback = async (feedbacks: FeedbackEntry[], questionnaire:
           summary: { type: Type.STRING },
           strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
           growthAreas: { type: Type.ARRAY, items: { type: Type.STRING } },
-          actionPlan: { type: Type.ARRAY, items: { type: Type.STRING } }
+          actionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+          superpowers: { 
+            type: Type.ARRAY, 
+            items: { 
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                category: { type: Type.STRING },
+                description: { type: Type.STRING }
+              },
+              required: ['title', 'category', 'description']
+            } 
+          }
         },
-        required: ['summary', 'strengths', 'growthAreas', 'actionPlan']
+        required: ['summary', 'strengths', 'growthAreas', 'actionPlan', 'superpowers']
       }
     }
   });

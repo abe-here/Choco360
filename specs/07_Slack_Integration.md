@@ -54,7 +54,7 @@ Slack 通知定位為 **「副作用 (Side Effect) 服務」**。
 
 ### 2. 觸發邏輯與資料庫紀錄 (Logic & DB Logging)
 *   **即時觸發與紀錄 (Real-time & DB Auto-Log)**：整合於 `services/api.ts` 的 CRUD 操作中，送出邀請、審核通過、收到回饋時會自動觸發 Slack 通知，並且一併將通知摘要與狀態寫入 Supabase `notification_logs` 資料表中。
-*   **手動批次提醒 (Manual Batch Reminders)**：為了提供更高的行政管理彈性，全局的任務催繳（Pending Tasks）現在改由管理後台的「活動監控」頁面手動點擊「發送待處理統整提醒」觸發。發送紀錄同樣會被寫入 `notification_logs`。
+*   **手動批次提醒 (Manual Batch Reminders)**：為了提供更高的行政管理彈性，全局的任務催繳（Pending Tasks）現在改由管理後台的「活動監控」頁面手動點擊「發送待處理統整提醒」觸發。發送紀錄同樣會被寫入 `notification_logs`。**已離職員工 (`status === 'resigned'`) 會被自動排除，系統不會對其發送任何提醒通知**。
 *   **通知管理中心 (Notification Management)**：管理員在後台的「通知管理」選項可瀏覽所有發出過的通知日誌，並支援單筆「重新發送」與「清空歷史紀錄」的功能。
 
 ### 3. 開發階段限制 (Current Constraints)

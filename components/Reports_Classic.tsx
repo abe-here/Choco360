@@ -4,19 +4,19 @@ import { api } from '../services/api';
 import { AIAnalysis, User, FeedbackEntry, Questionnaire, Nomination, Dimension, Question } from '../types';
 
 // ==========================================
-// 【子組件：分數標籤 (緊緻版)】
+// 【子組件：分數標籤】
 // ==========================================
 const ScoreBadge: React.FC<{ score: number; isSelf?: boolean }> = ({ score, isSelf }) => {
   const getColor = (s: number, self: boolean) => {
-    if (self) return 'text-white bg-indigo-600 border-indigo-600'; 
-    if (s >= 4) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-    if (s === 3) return 'text-orange-700 bg-orange-50 border-orange-200';
-    if (s === 2) return 'text-rose-700 bg-rose-50 border-rose-200';
-    return 'text-slate-600 bg-slate-50 border-slate-200';
+    if (self) return 'bg-indigo-600'; // 自評一律靛藍
+    if (s >= 4) return 'bg-emerald-500';
+    if (s === 3) return 'bg-orange-400';
+    if (s === 2) return 'bg-rose-500';
+    return 'bg-slate-500'; // 1分顯示深灰
   };
 
   return (
-    <div className={`w-7 h-7 rounded border ${getColor(score, !!isSelf)} flex items-center justify-center font-bold text-xs shadow-sm`}>
+    <div className={`w-8 h-8 rounded-xl ${getColor(score, !!isSelf)} text-white flex items-center justify-center font-black text-sm shadow-sm transition-transform hover:scale-110`}>
       {score}
     </div>
   );
@@ -194,9 +194,8 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
       const analysis = await analyzeFeedback(currentFeedbacks, currentQuestionnaire);
       await api.updateNominationAnalysis(selectedNomination.id, analysis, currentFeedbacks.length);
       setSelectedNomination(prev => prev ? { ...prev, aiAnalysis: analysis, analysisFeedbackCount: currentFeedbacks.length } : null);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : err?.message || 'AI 分析產生失敗，請確認資料庫權限或稍後再試。');
     } finally {
       setIsAnalyzing(false);
     }
@@ -268,13 +267,7 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
   if (loading) return <div className="p-20 text-center animate-pulse font-black text-slate-400">DATA SYNCHRONIZING...</div>;
 
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 pb-20 print:space-y-6 print:pb-0 print:bg-white">
-      <style>{`
-        @media print {
-          @page { margin: 12mm; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white; }
-        }
-      `}</style>
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 pb-20">
       <header className="print:hidden">
         <h1 className="text-4xl font-black text-slate-900 tracking-tight">個人成長報告</h1>
         <p className="text-slate-500 text-lg mt-1 tracking-tight">專屬於您的專業表現深度洞察與分析。</p>
@@ -296,20 +289,20 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
           <div className="space-y-1 flex-1 min-w-0">
             {user.isSystemAdmin ? (
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-amber-500 uppercase tracking-widest">管理員視角：切換人員</label>
+                <label className="block text-[10px] font-black text-amber-500 uppercase tracking-[0.2em]">管理員視角：切換人員</label>
                 <select 
                   value={targetUserId}
                   onChange={(e) => setTargetUserId(e.target.value)}
-                  className="text-lg font-black text-slate-900 bg-transparent border-none p-0 outline-none cursor-pointer hover:text-indigo-600 transition-colors max-w-full truncate"
+                  className="text-2xl font-black text-slate-900 bg-transparent border-none p-0 outline-none cursor-pointer hover:text-indigo-600 transition-colors max-w-full truncate"
                 >
                   {allUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
-                <p className="text-xs text-slate-500 font-semibold truncate mt-0.5">{targetUser.role || '員工 IC'} • {targetUser.department}</p>
+                <p className="text-xs text-slate-400 font-bold truncate">{targetUser.role || '員工 IC'} • {targetUser.department}</p>
               </div>
             ) : (
-              <div className="min-w-0 space-y-1">
-                <h2 className="text-lg font-black text-slate-900 tracking-tight truncate">{targetUser.name}</h2>
-                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider truncate mt-0.5">{targetUser.role || '員工 IC'} • {targetUser.department}</p>
+              <div className="min-w-0">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight truncate">{targetUser.name}</h2>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest truncate">{targetUser.role || '員工 IC'} • {targetUser.department}</p>
               </div>
             )}
           </div>
@@ -317,12 +310,12 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
 
         {/* 右側：週期與匯出按鈕組合 */}
         <div className="flex flex-col xl:flex-row items-center gap-4 w-full lg:w-auto">
-          <div className="bg-slate-50 py-2.5 px-4 border border-slate-100 rounded-2xl w-full xl:w-auto min-w-[280px]">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">評鑑週期切換</label>
+          <div className="bg-slate-50 p-2 border border-slate-100 rounded-2xl w-full xl:w-auto min-w-[320px]">
+            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-1">評鑑週期切換</label>
             <select 
               value={selectedNomination?.id || ''}
               onChange={(e) => setSelectedNomination(myNominations.find(n => n.id === e.target.value) || null)}
-              className="w-full bg-transparent border-none font-bold text-slate-800 outline-none p-0 cursor-pointer text-sm"
+              className="w-full bg-transparent border-none font-bold text-slate-800 outline-none px-3 cursor-pointer text-sm"
             >
               {myNominations.length > 0 ? (
                 myNominations.map(n => <option key={n.id} value={n.id}>{n.title}</option>)
@@ -333,7 +326,7 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
           <div className="flex gap-2 w-full xl:w-auto justify-center flex-shrink-0">
             <button 
               onClick={downloadMarkdown}
-              className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-3.5 bg-white border border-slate-200 text-slate-700 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-all shadow-sm group"
+              className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-white border border-slate-200 text-slate-600 font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-slate-50 transition-all shadow-sm group"
               title="下載 Markdown"
             >
               <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -343,7 +336,7 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
             </button>
             <button 
               onClick={handlePrint}
-              className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-3.5 bg-slate-900 text-white font-bold text-[13px] rounded-xl hover:bg-slate-800 transition-all shadow-md group border border-slate-800 whitespace-nowrap"
+              className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-slate-800 transition-all shadow-xl group border border-slate-800 whitespace-nowrap"
               title="列印報告 (PDF)"
             >
               <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -356,9 +349,9 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
       </div>
 
       {/* 打印標題 (僅在列印時顯示) */}
-      <div className="hidden print:block text-center border-b-2 border-slate-900 pb-4 mb-6">
-        <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">360 成長評鑑個人報告</h1>
-        <div className="mt-3 flex justify-center gap-8 font-bold text-slate-700 text-sm">
+      <div className="hidden print:block text-center border-b-2 border-slate-900 pb-8 mb-12">
+        <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">360 成長評鑑個人報告</h1>
+        <div className="mt-4 flex justify-center gap-12 font-bold text-slate-600">
            <p>受評對象：{targetUser.name}</p>
            <p>評鑑週期：{selectedNomination?.title}</p>
            <p>生成日期：{new Date().toLocaleDateString()}</p>
@@ -366,8 +359,8 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
       </div>
 
       {/* 數據看板 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print:flex print:flex-col print:gap-6">
-        <section className="bg-white rounded-[3rem] p-10 border border-slate-200 shadow-2xl flex flex-col items-center print:p-6 print:shadow-none print:border-slate-300 print:break-inside-avoid print:rounded-2xl">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <section className="bg-white rounded-[3rem] p-10 border border-slate-200 shadow-2xl flex flex-col items-center">
           <div className="w-full flex justify-between items-center mb-8">
             <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">落差分析雷達圖</h2>
             <div className="flex gap-4">
@@ -386,11 +379,11 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
           </div>
         </section>
 
-        <section className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden flex flex-col print:bg-slate-50 print:text-slate-900 print:shadow-none print:border print:border-slate-300 print:p-8 print:break-inside-avoid print:rounded-2xl">
-          <div className="relative z-10 flex justify-between items-start mb-8 print:mb-4">
+        <section className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden flex flex-col">
+          <div className="relative z-10 flex justify-between items-start mb-8">
             <div>
-              <h2 className="text-2xl font-black tracking-tight print:text-slate-900">Gemini AI 成長導師</h2>
-              <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest mt-1 print:text-slate-500">基於 {selectedNomination?.analysisFeedbackCount || 0} 份回饋分析</p>
+              <h2 className="text-2xl font-black tracking-tight">Gemini AI 成長導師</h2>
+              <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest mt-1">基於 {selectedNomination?.analysisFeedbackCount || 0} 份回饋分析</p>
             </div>
             <button onClick={handleRunAI} disabled={isAnalyzing} className="px-6 py-2 bg-indigo-600 text-white font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-indigo-500 disabled:opacity-50 transition-all">
               {isAnalyzing ? '分析中...' : '生成 AI 洞察'}
@@ -399,16 +392,16 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
           <div className="relative z-10 flex-1 overflow-y-auto pr-2 scrollbar-hide">
             {selectedNomination?.aiAnalysis ? (
               <div className="space-y-6 animate-in fade-in duration-700">
-                <div className="p-6 bg-white/5 border border-white/10 rounded-3xl italic text-sm text-indigo-100 leading-relaxed print:bg-white print:border-slate-200 print:text-slate-700 print:rounded-2xl">
+                <div className="p-6 bg-white/5 border border-white/10 rounded-3xl italic text-sm text-indigo-100 leading-relaxed">
                   「 {selectedNomination.aiAnalysis.summary} 」
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs print:text-slate-800">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
                   <div className="space-y-3">
-                    <p className="font-black text-emerald-400 uppercase tracking-widest print:text-emerald-700">顯性優勢 (Strengths)</p>
+                    <p className="font-black text-emerald-400 uppercase tracking-widest">顯性優勢 (Strengths)</p>
                     {selectedNomination.aiAnalysis.strengths.map((s, i) => <div key={i} className="flex gap-2"><span>•</span>{s}</div>)}
                   </div>
                   <div className="space-y-3">
-                    <p className="font-black text-amber-400 uppercase tracking-widest print:text-amber-700">待解盲點 (Growth Areas)</p>
+                    <p className="font-black text-amber-400 uppercase tracking-widest">待解盲點 (Growth Areas)</p>
                     {selectedNomination.aiAnalysis.growthAreas.map((g, i) => <div key={i} className="flex gap-2"><span>•</span>{g}</div>)}
                   </div>
                 </div>
@@ -432,172 +425,135 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
         </section>
       </div>
 
-      {/* 原始數據細節 (緊緻表格版) */}
-      <section className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden mt-8 print:shadow-none print:mt-4 print:border-none">
-        <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4 print:py-4 print:bg-white print:border-b-2 print:border-slate-300 print:break-after-avoid">
+      {/* 原始數據細節 */}
+      <section className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden">
+        <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">原始數據細項</h2>
-            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Raw Feedback Metrics & Details</p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">原始數據細項</h2>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Raw Feedback Metrics & Details</p>
           </div>
-          <div className="flex gap-3 text-[10px] font-bold uppercase tracking-widest">
-            <span className="text-indigo-700 bg-indigo-50 px-2.5 py-1.5 rounded-md border border-indigo-200 shadow-sm flex items-center gap-1.5"><span className="w-2 h-2 bg-indigo-500 rounded-sm"></span>您的自評</span>
-            <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-md border border-emerald-200 shadow-sm flex items-center gap-1.5"><span className="w-2 h-2 bg-emerald-500 rounded-sm"></span>同事評分</span>
+          <div className="flex gap-2 text-[10px] font-black uppercase tracking-widest">
+            <span className="text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">自評標章</span>
+            <span className="text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">他評標章</span>
           </div>
         </div>
 
-        <div className="flex flex-col">
+        <div className="p-10 space-y-24">
           {currentQuestionnaire?.dimensions.map((dim, dIdx) => {
             const dimMetric = dimensionMetrics.find(m => m.subject === dim.name);
             return (
-              <div key={dim.id} className="border-b-4 border-slate-200 last:border-b-0 animate-in slide-in-from-bottom-4 print:border-b-2">
-                {/* 維度標題與摘要對照 (表頭) */}
-                <div className="px-8 py-5 bg-slate-900 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6 relative print:bg-slate-50 print:border-slate-300 print:py-4 print:break-after-avoid print:break-inside-avoid">
+              <div key={dim.id} className="space-y-12 animate-in slide-in-from-bottom-4 break-inside-avoid">
+                {/* 維度標題與摘要對照 */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-50">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-black text-lg border border-slate-700 print:bg-white print:text-slate-900 print:border-slate-400">{dIdx + 1}</div>
+                    <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-xl shadow-lg">{dIdx + 1}</div>
                     <div>
-                      <h3 className="text-lg font-bold text-white tracking-tight print:text-slate-900">{dim.name}</h3>
-                      <p className="text-xs text-slate-400 font-medium italic mt-0.5 print:text-slate-600">{dim.purpose}</p>
+                      <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{dim.name}</h3>
+                      <p className="text-xs text-slate-400 font-bold italic mt-1">{dim.purpose}</p>
                     </div>
                   </div>
                   
-                  <div className="flex gap-8 items-center bg-slate-800/50 py-2 px-6 rounded-2xl border border-slate-700/50 print:bg-white print:border-slate-300">
-                    <div className="text-center">
-                      <span className="block text-[9px] font-bold text-indigo-400 uppercase tracking-widest mb-1 print:text-indigo-600">維度自評均標</span>
-                      <span className="text-xl font-black text-white leading-none print:text-indigo-700">{dimMetric?.self || '--'}</span>
+                  {/* 【新增】：維度總平均摘要列 */}
+                  <div className="flex gap-4">
+                    <div className="px-6 py-3 bg-indigo-50/80 rounded-2xl border border-indigo-100 text-center min-w-[120px]">
+                      <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">維度自評平均</p>
+                      <p className="text-2xl font-black text-indigo-700">{dimMetric?.self || '--'}</p>
                     </div>
-                    <div className="w-px h-8 bg-slate-700 print:bg-slate-300"></div>
-                    <div className="text-center">
-                      <span className="block text-[9px] font-bold text-emerald-400 uppercase tracking-widest mb-1 print:text-emerald-700">維度他評均標</span>
-                      <span className="text-xl font-black text-white leading-none print:text-emerald-700">{dimMetric?.peer || '--'}</span>
+                    <div className="px-6 py-3 bg-emerald-50/80 rounded-2xl border border-emerald-100 text-center min-w-[120px]">
+                      <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">維度他評平均</p>
+                      <p className="text-2xl font-black text-emerald-700">{dimMetric?.peer || '--'}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* 維度下的題目清單 (表格列) */}
-                <div className="divide-y border-t border-slate-100 divide-slate-100 bg-white">
+                {/* 維度下的題目清單 */}
+                <div className="space-y-16 pl-4">
                   {dim.questions.map((q, qIdx) => {
-                    const peerResponsesForCalc = currentFeedbacks.filter(f => f.fromUserId !== targetUser.id).flatMap(f => f.responses).filter(r => r.questionId === q.id && r.score && r.score > 1);
-                    const allPeerResponsesForDisplay = currentFeedbacks.filter(f => f.fromUserId !== targetUser.id).flatMap(f => f.responses).filter(r => r.questionId === q.id && r.score);
-                    const selfResponse = currentFeedbacks.filter(f => f.fromUserId === targetUser.id).flatMap(f => f.responses).find(r => r.questionId === q.id);
-                    const peerAvg = peerResponsesForCalc.length > 0 ? (peerResponsesForCalc.reduce((a, c) => a + (c.score || 0), 0) / peerResponsesForCalc.length).toFixed(1) : '--';
+                    // 他評分數：計算時過濾 1 分
+                    const peerResponsesForCalc = currentFeedbacks.filter(f => f.fromUserId !== user.id).flatMap(f => f.responses).filter(r => r.questionId === q.id && r.score && r.score > 1);
+                    // 為了列出所有標籤，仍抓取包含 1 分的所有回覆
+                    const allPeerResponsesForDisplay = currentFeedbacks.filter(f => f.fromUserId !== user.id).flatMap(f => f.responses).filter(r => r.questionId === q.id && r.score);
                     
-                    const selfScoreNum = selfResponse?.score || 0;
-                    const peerAvgNum = parseFloat(peerAvg) || 0;
-                    const toPct = (val: number) => Math.max(0, Math.min(100, ((val - 1) / 4) * 100));
-                    const selfPct = toPct(selfScoreNum);
-                    const peerPct = toPct(peerAvgNum);
-                    const minPct = Math.min(selfPct, peerPct);
-                    const maxPct = Math.max(selfPct, peerPct);
-                    const gapPct = maxPct - minPct;
+                    const selfResponse = currentFeedbacks.filter(f => f.fromUserId === user.id).flatMap(f => f.responses).find(r => r.questionId === q.id);
+                    
+                    const peerAvg = peerResponsesForCalc.length > 0 ? (peerResponsesForCalc.reduce((a, c) => a + (c.score || 0), 0) / peerResponsesForCalc.length).toFixed(1) : '--';
 
                     return (
-                      <div key={q.id} className="px-8 py-8 hover:bg-slate-50/50 transition-colors group print:break-inside-avoid print:py-5 print:px-4">
-                        {q.type === 'rating' ? (
-                          <div className="flex flex-col gap-6">
-                            {/* 上半部：題目與落差長條圖 */}
-                            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
-                              {/* 題目 */}
-                              <div className="flex items-start gap-4 flex-1">
-                                <span className="text-slate-300 font-black text-sm pt-0 w-8 flex-shrink-0 text-right">{dIdx + 1}.{qIdx + 1}</span>
-                                <h4 className="text-[15px] font-semibold text-slate-800 leading-relaxed pr-4">{q.text}</h4>
-                              </div>
-                              
-                              {/* 比較數值看板 */}
-                              <div className="flex-shrink-0 w-full xl:w-auto flex items-center pl-[3.25rem] xl:pl-0 mt-2 xl:mt-0">
-                                <div className="flex items-center gap-5 xl:gap-8 bg-slate-50/80 rounded-2xl p-4 border border-slate-100/80 shadow-sm w-full xl:w-auto justify-between xl:justify-start">
-                                  <div className="flex flex-col items-center min-w-[3.5rem]">
-                                    <span className="text-[10px] font-bold text-indigo-400 tracking-wider mb-1.5 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>自評
-                                    </span>
-                                    <span className="text-2xl font-black text-indigo-600 leading-none">
-                                      {selfScoreNum > 0 ? selfScoreNum.toFixed(1) : '--'}
-                                    </span>
-                                  </div>
-                                  
-                                  <div className="flex flex-col items-center justify-center min-w-[5rem]">
-                                    {(selfScoreNum > 0 && peerAvgNum > 0) ? (
-                                      <>
-                                        <span className={`text-xs font-black px-2 py-1 rounded-md shadow-sm ${
-                                          selfScoreNum > peerAvgNum 
-                                            ? 'bg-amber-100 text-amber-700 border border-amber-200' 
-                                            : selfScoreNum < peerAvgNum 
-                                              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
-                                              : 'bg-slate-200 text-slate-600 border border-slate-300'
-                                        }`}>
-                                          {selfScoreNum > peerAvgNum ? `-${(selfScoreNum - peerAvgNum).toFixed(1)}` : selfScoreNum < peerAvgNum ? `+${(peerAvgNum - selfScoreNum).toFixed(1)}` : '0.0'}
-                                        </span>
-                                        <span className="text-[9px] font-bold text-slate-400 mt-1.5 whitespace-nowrap">
-                                          {selfScoreNum > peerAvgNum ? '自評 > 他評' : selfScoreNum < peerAvgNum ? '自評 < 他評' : '認知一致'}
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <div className="w-px h-8 bg-slate-200"></div>
-                                    )}
-                                  </div>
+                      <div key={q.id} className="space-y-8">
+                        <div className="flex items-start gap-3">
+                          <span className="text-slate-300 font-black text-xs pt-1">{dIdx + 1}.{qIdx + 1}</span>
+                          <h4 className="text-lg font-black text-slate-800 leading-snug">{q.text}</h4>
+                        </div>
 
-                                  <div className="flex flex-col items-center min-w-[3.5rem]">
-                                    <span className="text-[10px] font-bold text-emerald-500 tracking-wider mb-1.5 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>他評
-                                    </span>
-                                    <span className="text-2xl font-black text-emerald-600 leading-none">{peerAvg}</span>
-                                  </div>
+                        {q.type === 'rating' ? (
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 pl-8">
+                            <div className="md:col-span-3 space-y-8">
+                              {/* 他評標章區 */}
+                              <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> 同事評分 (不計 1 分於平均)
+                                </label>
+                                <div className="flex flex-wrap gap-3">
+                                  {allPeerResponsesForDisplay.map((res, i) => (
+                                    <ScoreBadge key={i} score={res.score!} />
+                                  ))}
+                                  {allPeerResponsesForDisplay.length === 0 && <span className="text-xs text-slate-300 italic">尚無回饋</span>}
+                                </div>
+                              </div>
+
+                              {/* 自評標章區：【樣式統一】 */}
+                              <div className="space-y-3">
+                                <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span> 您的自評
+                                </label>
+                                <div className="flex">
+                                  {selfResponse?.score ? (
+                                    <ScoreBadge score={selfResponse.score} isSelf />
+                                  ) : <span className="text-xs text-slate-300 italic">未填寫自評</span>}
                                 </div>
                               </div>
                             </div>
 
-                            {/* 下半部：同事評分細項 (只在題目下方折疊展示) */}
-                            <div className="pl-[3.25rem]">
-                              <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100">
-                                <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">同事評分分佈 ({allPeerResponsesForDisplay.length} 則)</span>
-                                <div className="flex flex-wrap gap-2">
-                                  {allPeerResponsesForDisplay.map((res, i) => (
-                                    <ScoreBadge key={i} score={res.score!} />
-                                  ))}
-                                  {allPeerResponsesForDisplay.length === 0 && <span className="text-xs text-slate-300 italic">尚未收到回饋</span>}
-                                </div>
+                            {/* 問題級別對照卡片 */}
+                            <div className="md:col-span-1 bg-slate-50/80 rounded-[2.5rem] p-6 flex flex-col justify-center gap-5 border border-slate-100 shadow-inner">
+                              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                <span>本題他評平均</span>
+                                <span className="text-lg text-emerald-600 font-black">{peerAvg}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                <span>本題自評分值</span>
+                                <span className="text-lg text-indigo-600 font-black">{selfResponse?.score || '--'}</span>
+                              </div>
+                              <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
+                                <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${(selfResponse?.score || 0) * 20}%` }}></div>
                               </div>
                             </div>
                           </div>
                         ) : (
-                          <div className="flex flex-col gap-6 items-start">
-                            {/* 題目描述 */}
-                            <div className="flex items-start gap-4">
-                              <span className="text-slate-300 font-black text-sm pt-0 w-8 flex-shrink-0 text-right">{dIdx + 1}.{qIdx + 1}</span>
-                              <div>
-                                <span className="inline-block text-[9px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded mb-2">簡答文字題</span>
-                                <h4 className="text-[15px] font-semibold text-slate-800 leading-relaxed max-w-4xl">{q.text}</h4>
-                              </div>
-                            </div>
-                            
-                            {/* 問答內容 */}
-                            <div className="w-full pl-[3.25rem] space-y-4">
-                              {selfResponse?.answerText && (
-                                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50 shadow-sm relative">
-                                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-xl"></div>
-                                  <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span> 您的自評觀點
-                                  </p>
-                                  <p className="text-[14px] font-medium text-indigo-900 leading-relaxed">"{selfResponse.answerText}"</p>
-                                </div>
-                              )}
-                              
-                              <div className="space-y-2.5">
-                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full"></span> 同事具體意見 ({currentFeedbacks.filter(f => f.fromUserId !== targetUser.id).flatMap(f => f.responses.filter(r => r.questionId === q.id && r.answerText)).length} 則)
+                          <div className="grid grid-cols-1 gap-6 pl-8">
+                            {/* 自評文字區隔 */}
+                            {selfResponse?.answerText && (
+                              <div className="p-8 bg-indigo-50/50 border border-indigo-100 rounded-[2.5rem] space-y-3 shadow-sm">
+                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></span> 您的自評觀點
                                 </p>
-                                <ul className="space-y-2.5">
-                                  {currentFeedbacks
-                                    .filter(f => f.fromUserId !== targetUser.id)
-                                    .flatMap(f => f.responses.filter(r => r.questionId === q.id && r.answerText))
-                                    .map((res, i) => (
-                                      <li key={i} className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm hover:border-emerald-200 transition-colors text-[14px] text-slate-700 leading-relaxed">
-                                        "{res.answerText}"
-                                      </li>
-                                    ))}
-                                  {currentFeedbacks.filter(f => f.fromUserId !== targetUser.id).flatMap(f => f.responses.filter(r => r.questionId === q.id && r.answerText)).length === 0 && (
-                                      <li className="text-sm text-slate-400 italic bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 text-center">目前無任何同事留下文字回饋</li>
-                                  )}
-                                </ul>
+                                <p className="text-sm font-bold text-indigo-900 leading-relaxed italic">"{selfResponse.answerText}"</p>
+                              </div>
+                            )}
+                            {/* 他評文字回饋 */}
+                            <div className="space-y-4">
+                              <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2 px-2">
+                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> 同事具體觀察描述
+                              </p>
+                              <div className="grid grid-cols-1 gap-4">
+                                {currentFeedbacks
+                                  .filter(f => f.fromUserId !== user.id)
+                                  .flatMap(f => f.responses.filter(r => r.questionId === q.id && r.answerText))
+                                  .map((res, i) => (
+                                    <div key={i} className="p-7 bg-white border border-slate-100 rounded-[2.5rem] shadow-sm italic text-sm text-slate-700 leading-relaxed hover:border-indigo-100 transition-all">
+                                      "{res.answerText}"
+                                    </div>
+                                  ))}
                               </div>
                             </div>
                           </div>

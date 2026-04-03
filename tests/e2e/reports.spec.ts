@@ -208,7 +208,13 @@ test.describe('06. Reports & AI Coach', () => {
   // ====== Test 1: 頁面載入與標題 ======
   test('頁面正確載入並顯示標題與副標題', async ({ page }) => {
     await expect(page.locator('h1:has-text("個人成長報告")')).toBeVisible();
-    await expect(page.locator('text=深度洞察您的專業表現與潛在成長區域。')).toBeVisible();
+    await expect(page.locator('text=專屬於您的專業表現深度洞察與分析。')).toBeVisible();
+  });
+
+  // ====== Test 1.5: 匯出按鈕顯示 ======
+  test('頁面應提供 Markdown 與 PDF 匯出按鈕', async ({ page }) => {
+    await expect(page.locator('button:has-text("MD 存檔")')).toBeVisible();
+    await expect(page.locator('button:has-text("PDF 匯出")')).toBeVisible();
   });
 
   // ====== Test 2: 評鑑週期切換 ======
@@ -309,8 +315,8 @@ test.describe('06. Reports & AI Coach', () => {
     await expect(page.locator('h4:has-text("面對複雜問題時能提出有效解決方案")')).toBeVisible();
 
     // 維度平均標籤
-    await expect(page.locator('text=維度自評平均').first()).toBeVisible();
-    await expect(page.locator('text=維度他評平均').first()).toBeVisible();
+    await expect(page.locator('text=維度自評均標').first()).toBeVisible();
+    await expect(page.locator('text=維度他評均標').first()).toBeVisible();
 
     // 分數標章 (ScoreBadge) 存在 — 驗證他評和自評區分
     await expect(page.locator('text=同事評分').first()).toBeVisible();
@@ -324,7 +330,7 @@ test.describe('06. Reports & AI Coach', () => {
     await expect(page.locator('text=我經常主動幫助同事 debug。')).toBeVisible();
 
     // 同事匿名文字回饋
-    await expect(page.locator('text=同事具體觀察描述').first()).toBeVisible();
+    await expect(page.locator('text=同事具體意見').first()).toBeVisible();
     await expect(page.locator('text=在專案緊急時主動加班協助。')).toBeVisible();
     await expect(page.locator('text=願意分享知識並耐心指導新人。')).toBeVisible();
   });

@@ -1,0 +1,76 @@
+/* Choco360 Global Styles & Print Optimization */
+
+@media print {
+  /* 隱藏導覽列與側邊欄 */
+  aside, 
+  nav, 
+  header, 
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* 移除主內容的邊距與背景色 */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .ml-72 {
+    margin-left: 0 !important;
+  }
+
+  /* 確保報告內容寬度 100% */
+  .max-w-5xl {
+    max-width: 100% !important;
+  }
+
+  /* 優化顏色與陰影，減少列印負擔 */
+  .bg-slate-900, 
+  .bg-white, 
+  .bg-slate-50 {
+    background-color: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+    border-color: #eee !important;
+  }
+
+  .text-white {
+    color: black !important;
+  }
+
+  .shadow-2xl, 
+  .shadow-xl, 
+  .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  /* 類標籤顏色保留（如果彩印） */
+  .bg-indigo-600 { background-color: #4f46e5 !important; -webkit-print-color-adjust: exact; }
+  .bg-emerald-500 { background-color: #10b981 !important; -webkit-print-color-adjust: exact; }
+
+  /* 分頁優化 */
+  .break-inside-avoid {
+    break-inside: avoid !important;
+  }
+  
+  section {
+    margin-bottom: 2rem !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* 雷達圖與 AI 導師分開 */
+  .grid-cols-2 {
+    display: block !important;
+  }
+
+  .grid-cols-2 > section {
+    width: 100% !important;
+    margin-bottom: 30px !important;
+  }
+
+  /* 隱藏 AI 生成按鈕 */
+  button {
+    display: none !important;
+  }
+}

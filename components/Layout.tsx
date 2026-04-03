@@ -34,6 +34,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
     menuItems.push({ id: 'approvals', label: '審核名單', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' });
   }
 
+  // 將社群交流移至最下方
+  menuItems.push({ id: 'community', label: '社群交流 (Beta)', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' });
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <aside className="w-72 bg-white border-r border-slate-200 flex flex-col fixed h-full shadow-sm z-50">

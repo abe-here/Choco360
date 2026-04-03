@@ -22,9 +22,9 @@ test.describe('04. Nomination Flow', () => {
       await route.fulfill({
         status: 200,
         json: [
-          { id: 'emp-1', name: 'Employee A', email: 'employee@choco.media', role: 'Developer', department: 'Product', is_manager: false },
-          { id: 'emp-2', name: 'Bob', email: 'bob@choco.media', role: 'Designer', department: 'Product', is_manager: false },
-          { id: 'emp-3', name: 'Charlie', email: 'charlie@choco.media', role: 'HR', department: 'HR/ADM', is_manager: false }
+          { id: 'emp-1', name: 'Employee A', email: 'employee@choco.media', role: 'Developer', department: 'Product', is_manager: false, status: 'active' },
+          { id: 'emp-2', name: 'Bob', email: 'bob@choco.media', role: 'Designer', department: 'Product', is_manager: false, status: 'active' },
+          { id: 'emp-3', name: 'Charlie', email: 'charlie@choco.media', role: 'HR', department: 'HR/ADM', is_manager: false, status: 'active' }
         ]
       });
     });
@@ -182,6 +182,152 @@ test.describe('04. Nomination Flow', () => {
     await page.click('button:has-text("歷史核准")');
     // UI should show it if the mock persists state, but since our mock is static it will still refetch or show empty for approved. 
     // Just verify the button click was possible.
+  });
+  
+  test('Part 3: 儀表板快速審核 (Dashboard Quick Approval)', async ({ page }) => {
+    // Mock APIs for Manager
+    await page.route('**/*/rest/v1/profiles*', async (route, request) => {
+      if (request.url().includes('email=eq.manager')) {
+        await route.fulfill({
+          status: 200,
+          json: [{ id: 'mgr-1', name: 'Manager X', email: 'manager@choco.media', role: 'Head', department: 'Product', is_system_admin: false, is_manager: true }]
+        });
+        return;
+      }
+      if (request.url().includes('id=eq.')) {
+        await route.fulfill({
+          status: 200,
+          json: [{ id: 'emp-1', name: 'Employee A', email: 'employee@choco.media', role: 'Developer', department: 'Product', is_manager: false }]
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        json: [
+          { id: 'emp-1', name: 'Employee A', email: 'employee@choco.media', role: 'Developer', department: 'Product', is_manager: false },
+          { id: 'mgr-1', name: 'Manager X', email: 'manager@choco.media', role: 'Head', department: 'Product', is_manager: true }
+        ]
+      });
+    });
+
+    // Mock nominations
+    await page.route('**/*/rest/v1/nominations*', async (route, request) => {
+      const method = request.method();
+      const url = request.url();
+      
+      if (method === 'PATCH') {
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      
+      // Separate responses based on query
+      if (url.includes('manager_email=eq.')) {
+        // Pending Approvals section
+        await route.fulfill({
+          status: 200,
+          json: [
+            { id: 'nom-dashboard-1', title: 'Dashboard Test Nomination', status: 'Pending', requester_id: 'emp-1', manager_email: 'manager@choco.media', reviewer_ids: ['mgr-1'], created_at: new Date().toISOString() }
+          ]
+        });
+      } else {
+        // Tasks or My Requests - empty to avoid duplicates
+        await route.fulfill({
+          status: 200,
+          json: []
+        });
+      }
+    });
+
+    // Mock Feedbacks (empty)
+    await page.route('**/*/rest/v1/feedbacks*', async (route) => {
+       await route.fulfill({ status: 200, json: [] });
+    });
+
+    // Inject localStorage
+    const ref = new URL(process.env.VITE_SUPABASE_URL || 'https://default.supabase.co').hostname.split('.')[0];
+    await page.addInitScript((projectRef) => {
+      const email = 'manager@choco.media';
+      const fakeSession = { access_token: 'fake', refresh_token: 'fake', expires_in: 3600, expires_at: 9999999999, token_type: 'bearer', user: { id: 'mgr-1', aud: 'authenticated', role: 'authenticated', email, app_metadata: { provider: 'google', providers: ['google'] }, user_metadata: {}, created_at: '2023-01-01T00:00:00.000Z', updated_at: '2023-01-01T00:00:00.000Z' } };
+      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify(fakeSession));
+    }, ref);
+
+    await page.goto('/');
+
+    // Verify "Pending Approvals" section
+    await expect(page.locator('text=待辦審核名單')).toBeVisible();
+    await expect(page.locator('text=Dashboard Test Nomination')).toBeVisible();
+    await expect(page.locator('text=Employee A')).toBeVisible();
+
+    // Click "一鍵核准"
+    await page.click('button:has-text("一鍵核准")');
+
+    // Verify the item is removed from Dashboard (optimistic update in UI)
+    await expect(page.locator('text=Dashboard Test Nomination')).not.toBeVisible();
+  });
+
+  test('Part 4: 離職員工過濾 - 提名名單應排除離職者', async ({ page }) => {
+    // Mock APIs: 包含一名離職員工
+    await page.route('**/*/rest/v1/profiles*', async (route, request) => {
+      if (request.url().includes('email=eq.employee')) {
+        await route.fulfill({
+          status: 200,
+          json: [{ id: 'emp-1', name: 'Employee A', email: 'employee@choco.media', role: 'Developer', department: 'Product', is_system_admin: false, is_manager: false, manager_email: 'manager@choco.media', status: 'active' }]
+        });
+        return;
+      }
+      if (request.url().includes('id=eq.')) {
+        await route.fulfill({
+          status: 200,
+          json: [{ id: 'emp-1', name: 'Employee A', email: 'employee@choco.media', role: 'Developer', department: 'Product', is_manager: false, status: 'active' }]
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        json: [
+          { id: 'emp-1', name: 'Employee A', email: 'employee@choco.media', role: 'Developer', department: 'Product', is_manager: false, status: 'active' },
+          { id: 'emp-2', name: 'Active Bob', email: 'bob@choco.media', role: 'Designer', department: 'Product', is_manager: false, status: 'active' },
+          { id: 'emp-4', name: 'Resigned Eve', email: 'eve@choco.media', role: 'QA', department: 'Product', is_manager: false, status: 'resigned' }
+        ]
+      });
+    });
+
+    await page.route('**/api/slack/**', async (route) => {
+      await route.fulfill({ status: 200, json: { ok: true } });
+    });
+
+    await page.route('**/*/rest/v1/questionnaires*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        json: [{ id: 'q-1', title: 'Q1 Performance Review', description: 'desc 1', active: true, dimensions: [] }]
+      });
+    });
+
+    await page.route('**/*/rest/v1/nominations*', async (route, request) => {
+      if (request.method() === 'POST') {
+        await route.fulfill({ status: 201 });
+        return;
+      }
+      await route.fulfill({ status: 200, json: [] });
+    });
+
+    const ref = new URL(process.env.VITE_SUPABASE_URL || 'https://default.supabase.co').hostname.split('.')[0];
+    await page.addInitScript((projectRef) => {
+      const email = 'employee@choco.media';
+      const fakeSession = { access_token: 'fake', refresh_token: 'fake', expires_in: 3600, expires_at: 9999999999, token_type: 'bearer', user: { id: 'test-id', aud: 'authenticated', role: 'authenticated', email, app_metadata: { provider: 'google', providers: ['google'] }, user_metadata: {}, created_at: '2023-01-01T00:00:00.000Z', updated_at: '2023-01-01T00:00:00.000Z' } };
+      window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify(fakeSession));
+    }, ref);
+
+    await page.goto('/');
+    await page.click('text=邀請反饋');
+
+    // 填寫標題並進入 Step 2
+    await page.locator('input[placeholder="請輸入本次反饋邀請的明確名稱"]').fill('Test Resigned Filter');
+    await page.click('text=下一步：選擇誰來評鑑您');
+
+    // 驗證 Active Bob 可見，Resigned Eve 不可見
+    await expect(page.locator('text=Active Bob')).toBeVisible();
+    await expect(page.locator('text=Resigned Eve')).not.toBeVisible();
   });
 
 });

@@ -55,6 +55,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
   const [activeSubTab, setActiveSubTab] = useState<'activity' | 'users' | 'forms' | 'notifications'>('activity');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('All');
+  const [showResigned, setShowResigned] = useState(false);
   
   // --- 活動監控狀態 (Nominations) ---
   const [allNominations, setAllNominations] = useState<Nomination[]>([]);
@@ -97,7 +98,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
   const ROLES = ['PM', 'Designer', 'Developer', 'QA', 'IT', 'DA/DE', 'CS', 'Content', 'HR/ADM', 'AVOD', 'Marketing', 'Finance'];
   
   const MANAGERS = useMemo(() => {
-    return users.filter(u => u.isManager || u.isSystemAdmin).sort((a, b) => a.name.localeCompare(b.name));
+    return users.filter(u => (u.isManager || u.isSystemAdmin) && u.status !== 'resigned').sort((a, b) => a.name.localeCompare(b.name));
   }, [users]);
 
   const groupedLogs = useMemo(() => {
@@ -238,9 +239,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
       const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            u.email.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesDept = selectedDept === 'All' || u.department === selectedDept;
-      return matchesSearch && matchesDept;
+      const matchesStatus = showResigned || u.status !== 'resigned';
+      return matchesSearch && matchesDept && matchesStatus;
     });
-  }, [users, searchTerm, selectedDept]);
+  }, [users, searchTerm, selectedDept, showResigned]);
 
   const nominationStats = useMemo(() => {
     return allNominations.map(nom => {
@@ -369,6 +371,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
     } catch (err) {
       alert("刪除員工失敗");
     } finally { setIsSavingUser(false); }
+  };
+
+  const toggleResignedVisibility = () => {
+    setShowResigned(prev => !prev);
   };
 
   const renderActivityMonitoring = () => (
@@ -507,6 +513,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
             {dept === 'All' ? '全部門' : dept}
           </button>
         ))}
+        <div className="flex-1"></div>
+        <button
+          onClick={toggleResignedVisibility}
+          className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border shadow-sm ${
+            showResigned 
+              ? 'bg-rose-500 text-white border-rose-500 shadow-rose-100 -translate-y-0.5' 
+              : 'bg-white text-slate-400 border-slate-100 hover:bg-slate-50'
+          }`}
+        >
+          {showResigned ? '隱藏離職人員' : '顯示離職人員'}
+        </button>
       </div>
 
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden min-h-[400px]">
@@ -539,6 +556,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                           <p className="font-black text-slate-900">{user.name}</p>
                           {user.isSystemAdmin && (
                             <span className="px-2 py-0.5 bg-indigo-900 text-white text-[9px] font-black rounded-md uppercase tracking-wider shadow-sm">系統管理員</span>
+                          )}
+                          {user.status === 'resigned' && (
+                            <span className="px-2 py-0.5 bg-slate-200 text-slate-500 text-[9px] font-black rounded-md uppercase tracking-wider shadow-sm">已離職</span>
                           )}
                         </div>
                         <p className="text-xs text-slate-400 font-medium">{user.email}</p>
@@ -650,7 +670,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                 <SelectWrapper label="系統權限" value={editingUser.isSystemAdmin ? 'admin' : 'user'} onChange={(v: string) => setEditingUser(p => ({ ...p!, isSystemAdmin: v === 'admin' }))} options={[{label: '一般使用者', value: 'user'}, {label: '系統管理員', value: 'admin'}]} />
                 <SelectWrapper label="是否為主管" value={editingUser.isManager ? 'yes' : 'no'} onChange={(v: string) => setEditingUser(p => ({ ...p!, isManager: v === 'yes' }))} options={[{label: '否', value: 'no'}, {label: '是', value: 'yes'}]} />
               </div>
-              <SelectWrapper label="直屬主管 (審核人)" value={editingUser.managerEmail || ''} onChange={(v: string) => setEditingUser(p => ({ ...p!, managerEmail: v }))} options={MANAGERS.map(m => ({ label: m.name, value: m.email }))} />
+              <div className="grid grid-cols-2 gap-4">
+                <SelectWrapper label="直屬主管 (審核人)" value={editingUser.managerEmail || ''} onChange={(v: string) => setEditingUser(p => ({ ...p!, managerEmail: v }))} options={MANAGERS.map(m => ({ label: m.name, value: m.email }))} />
+                <SelectWrapper label="員工狀態" value={editingUser.status || 'active'} onChange={(v: any) => setEditingUser(p => ({ ...p!, status: v }))} options={[{label: '在職 (Active)', value: 'active'}, {label: '離職 (Resigned)', value: 'resigned'}]} />
+              </div>
             </div>
             {editingUser.id && (
               <div className="pt-6 border-t border-slate-100">
@@ -850,6 +873,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
       u.id !== selectedNomination.requesterId && 
       !currentReviewerIds.includes(u.id) &&
       u.email !== selectedNomination.requesterId &&
+      u.status !== 'resigned' &&
       (u.name.toLowerCase().includes(drawerSearchSearch.toLowerCase()) || u.email.toLowerCase().includes(drawerSearchSearch.toLowerCase()))
     );
 

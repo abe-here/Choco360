@@ -58,10 +58,11 @@ const Nomination: React.FC<NominationProps> = ({ users, user }) => {
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       const isNotSelf = u.id !== user.id;
+      const isActive = u.status !== 'resigned';
       const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            u.email.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesDept = selectedDept === 'All' || u.department === selectedDept;
-      return isNotSelf && matchesSearch && matchesDept;
+      return isNotSelf && isActive && matchesSearch && matchesDept;
     });
   }, [users, user.id, searchTerm, selectedDept]);
 

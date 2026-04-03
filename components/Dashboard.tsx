@@ -12,6 +12,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, users, onNavigate }) => {
   const [pendingTasks, setPendingTasks] = useState<Nomination[]>([]);
   const [receivedFeedbacks, setReceivedFeedbacks] = useState<FeedbackEntry[]>([]);
   const [myNominations, setMyNominations] = useState<Nomination[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<Nomination[]>([]);
   const [nominationProgress, setNominationProgress] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
 
@@ -19,10 +20,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, users, onNavigate }) => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const [tasks, feedbacks, nominations] = await Promise.all([
+        const [tasks, feedbacks, nominations, managerNominations] = await Promise.all([
           api.getNominationTasks(user.id),
           api.getFeedbacksForUser(user.id),
-          api.getNominationsByRequester(user.id)
+          api.getNominationsByRequester(user.id),
+          user.isManager ? api.getNominationsForManager(user.email) : Promise.resolve([])
         ]);
 
         const activeNominations = nominations.filter(n => n.status === 'Approved' || n.status === 'Pending');
@@ -39,6 +41,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, users, onNavigate }) => {
         setReceivedFeedbacks(feedbacks);
         setMyNominations(nominations);
         setNominationProgress(progressMap);
+        setPendingApprovals(managerNominations.filter(n => n.status === 'Pending'));
       } catch (err) {
         console.error("Dashboard data load error", err);
       } finally {
@@ -74,7 +77,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, users, onNavigate }) => {
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
-  const isCompletelyEmpty = pendingTasks.length === 0 && myNominations.length === 0;
+  const isCompletelyEmpty = pendingTasks.length === 0 && myNominations.length === 0 && pendingApprovals.length === 0;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
@@ -229,6 +232,66 @@ const Dashboard: React.FC<DashboardProps> = ({ user, users, onNavigate }) => {
               })}
             </div>
           </section>
+
+          {/* 待辦審核清單 (僅主管可見) */}
+          {user.isManager && pendingApprovals.length > 0 && (
+            <section className="bg-white rounded-[1.5rem] p-8 relative shadow-sm border border-slate-100">
+              <div className="mb-6 flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-900">待辦審核名單</h2>
+                  <div className="text-[10px] font-black text-amber-500 tracking-[0.2em] uppercase mt-1">PENDING APPROVALS</div>
+                </div>
+                <span className="px-4 py-2 bg-amber-100 text-amber-700 text-[10px] font-black rounded-xl uppercase tracking-widest shadow-sm">
+                  需您核准
+                </span>
+              </div>
+              
+              <div className="divide-y divide-slate-100">
+                {pendingApprovals.map((nom) => {
+                  const requester = users.find(u => u.id === nom.requesterId || u.email === nom.requesterId);
+                  return (
+                    <div key={nom.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between group gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-slate-100 relative shadow-inner border border-slate-200">
+                          <img src={requester?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${nom.requesterId}`} alt="" className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 text-sm">{requester?.name || nom.requesterId}</p>
+                          <p className="text-xs text-slate-500 truncate max-w-[200px] md:max-w-md mt-0.5">{nom.title}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">已選 {nom.reviewerIds.length} 位受邀者</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 w-full md:w-auto">
+                        <button 
+                          onClick={async () => {
+                            try {
+                              const originalBtnText = document.getElementById(`btn-approve-${nom.id}`)?.innerText;
+                              const btn = document.getElementById(`btn-approve-${nom.id}`);
+                              if(btn) btn.innerText = '處理中...';
+                              await api.updateNomination(nom.id, { status: 'Approved' });
+                              setPendingApprovals(prev => prev.filter(p => p.id !== nom.id));
+                            } catch(err) {
+                              alert('核准失敗，請稍後再試。');
+                            }
+                          }}
+                          id={`btn-approve-${nom.id}`}
+                          className="flex-1 md:flex-none px-4 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-indigo-600 transition shadow-sm text-center"
+                        >
+                          一鍵核准
+                        </button>
+                        <button 
+                          onClick={() => onNavigate('approvals')}
+                          className="flex-1 md:flex-none px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition shadow-sm text-center"
+                        >
+                          詳細審核
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* 需完成的評鑑任務 */}
           <section className="bg-white rounded-[1.5rem] p-8 relative shadow-sm border border-slate-100">

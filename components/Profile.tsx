@@ -16,8 +16,9 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSavingAvatar, setIsSavingAvatar] = useState(false);
   
-  // 新增：暫存頭像狀態，預設為當前頭像
   const [tempAvatar, setTempAvatar] = useState(user.avatar);
+  const [tempMotto, setTempMotto] = useState(user.motto || '');
+  const [tempActiveSuperpowerId, setTempActiveSuperpowerId] = useState(user.activeSuperpowerId || '');
 
   useEffect(() => {
     fetchMessages();
@@ -48,23 +49,29 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
     }, 300);
   };
 
-  // 新增：正式儲存頭像
-  const handleSaveAvatar = async () => {
+  // 新增：正式儲存所有變更
+  const handleSaveChanges = async () => {
     setIsSavingAvatar(true);
     try {
-      await api.updateAvatar(user.id, tempAvatar);
-      onUserUpdate({ ...user, avatar: tempAvatar });
-      // 成功後，暫存與正式會同步，按鈕會自動消失
+      const updatedUser = await api.updateUser({ 
+        ...user, 
+        avatar: tempAvatar,
+        motto: tempMotto,
+        activeSuperpowerId: tempActiveSuperpowerId
+      });
+      onUserUpdate(updatedUser);
     } catch (err) {
-      alert("儲存頭像失敗，請檢查網路連線");
+      alert("儲存失敗，請檢查網路連線");
     } finally {
       setIsSavingAvatar(false);
     }
   };
 
-  // 新增：還原頭像
-  const handleCancelAvatar = () => {
+  // 新增：還原變更
+  const handleCancelChanges = () => {
     setTempAvatar(user.avatar);
+    setTempMotto(user.motto || '');
+    setTempActiveSuperpowerId(user.activeSuperpowerId || '');
   };
 
   const handlePostMessage = async (e: React.FormEvent) => {
@@ -84,7 +91,19 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
   };
 
   const manager = users.find(u => u.email === user.managerEmail);
-  const hasAvatarChange = tempAvatar !== user.avatar;
+  const hasChanges = tempAvatar !== user.avatar || tempMotto !== (user.motto || '') || tempActiveSuperpowerId !== (user.activeSuperpowerId || '');
+
+  const getSuperpowerColor = (category?: string) => {
+    switch(category) {
+      case 'strategic': return 'from-blue-500 to-indigo-500';
+      case 'support': return 'from-pink-500 to-rose-500';
+      case 'leadership': return 'from-amber-400 to-orange-500';
+      default: return 'from-slate-700 to-slate-800';
+    }
+  };
+
+  const activeSuperpower = user.unlockedSuperpowers?.find(s => s.id === tempActiveSuperpowerId);
+  const auraColor = activeSuperpower ? getSuperpowerColor(activeSuperpower.category) : '';
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -99,15 +118,16 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
         <div className="relative z-10 flex flex-col md:flex-row items-center gap-12">
           <div className="flex flex-col items-center gap-6">
             <div className="relative group">
+              <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 bg-gradient-to-tr ${auraColor} rounded-full blur-[30px] opacity-40 transition-all duration-700 pointer-events-none`}></div>
               <img 
                 src={tempAvatar} 
-                className={`w-40 h-40 rounded-[3rem] border-4 border-white/20 shadow-2xl bg-slate-800 transition-all ${isRefreshingAvatar ? 'opacity-50 scale-95 blur-sm' : ''} ${hasAvatarChange ? 'ring-4 ring-indigo-500 ring-offset-4 ring-offset-slate-900' : ''}`} 
+                className={`relative z-10 w-40 h-40 rounded-[3rem] border-4 border-white/20 shadow-2xl bg-slate-800 transition-all ${isRefreshingAvatar ? 'opacity-50 scale-95 blur-sm' : ''} ${hasChanges ? 'ring-4 ring-indigo-500 ring-offset-4 ring-offset-slate-900' : ''}`} 
                 alt={user.name} 
               />
               <button 
                 onClick={handlePreviewAvatar}
                 disabled={isRefreshingAvatar || isSavingAvatar}
-                className="absolute -bottom-2 -right-2 w-12 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-xl transition-all active:scale-90 disabled:opacity-50"
+                className="absolute z-20 -bottom-2 -right-2 w-12 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-xl transition-all active:scale-90 disabled:opacity-50"
                 title="刷新隨機預覽"
               >
                 <svg className={`w-6 h-6 ${isRefreshingAvatar ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,41 +135,33 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
                 </svg>
               </button>
             </div>
-            
-            {/* 儲存動作區：僅在有變動時顯示 */}
-            {hasAvatarChange && (
-              <div className="flex flex-col items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                <div className="flex gap-2">
-                  <button 
-                    onClick={handleSaveAvatar}
-                    disabled={isSavingAvatar}
-                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg transition-all flex items-center gap-2"
-                  >
-                    {isSavingAvatar ? (
-                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                    )}
-                    儲存頭像
-                  </button>
-                  <button 
-                    onClick={handleCancelAvatar}
-                    disabled={isSavingAvatar}
-                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
-                  >
-                    取消還原
-                  </button>
-                </div>
-                <p className="text-[9px] font-bold text-indigo-400 animate-pulse">您目前的頭像尚未儲存</p>
-              </div>
-            )}
-            
-            {!hasAvatarChange && (
-              <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest bg-white/5 px-4 py-1.5 rounded-full border border-white/10">Avatar Seed Engine v7</span>
-            )}
+            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest bg-white/5 px-4 py-1.5 rounded-full border border-white/10 mt-2">Avatar Seed Engine v7</span>
           </div>
 
           <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-8 w-full">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">人生格言 (Motto)</p>
+              <input 
+                type="text" 
+                value={tempMotto}
+                onChange={e => setTempMotto(e.target.value)}
+                placeholder="寫下一句代表您的格言..."
+                className="w-full bg-slate-800 text-white text-sm font-bold border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">裝備超能力 (Active Aura)</p>
+              <select 
+                value={tempActiveSuperpowerId}
+                onChange={e => setTempActiveSuperpowerId(e.target.value)}
+                className="w-full bg-slate-800 text-white text-sm font-bold border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 transition-all outline-none appearance-none"
+              >
+                <option value="">未裝備</option>
+                {user.unlockedSuperpowers && user.unlockedSuperpowers.map(s => (
+                  <option key={s.id} value={s.id}>{s.title}</option>
+                ))}
+              </select>
+            </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">顯示姓名</p>
               <p className="text-2xl font-black">{user.name}</p>
@@ -175,6 +187,32 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
             </div>
           </div>
         </div>
+        
+        {/* 整體儲存提示列 */}
+        {hasChanges && (
+          <div className="mt-8 p-6 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-4 relative z-10">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-indigo-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <p className="text-sm font-bold text-indigo-100">您有尚未儲存的個人檔案變更</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleCancelChanges}
+                disabled={isSavingAvatar}
+                className="px-4 py-2 hover:bg-white/10 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all"
+              >
+                取消還原
+              </button>
+              <button 
+                onClick={handleSaveChanges}
+                disabled={isSavingAvatar}
+                className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg transition-all flex items-center gap-2"
+              >
+                {isSavingAvatar ? '儲存中...' : '確認儲存'}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Message Board */}

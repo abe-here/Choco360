@@ -16,7 +16,7 @@ test.describe('02. Admin Configuration - Comprehensive Tests', () => {
       if (url.includes('email=eq.admin')) {
         await route.fulfill({
           status: 200,
-          json: [{ id: 'admin-id', name: 'Abraham Admin', email: 'admin@choco.media', role: 'CTO', department: 'Executive', is_system_admin: true, is_manager: true }]
+          json: [{ id: 'admin-id', name: 'Abraham Admin', email: 'admin@choco.media', role: 'CTO', department: 'Executive', is_system_admin: true, is_manager: true, status: 'active' }]
         });
         return;
       }
@@ -24,9 +24,10 @@ test.describe('02. Admin Configuration - Comprehensive Tests', () => {
       await route.fulfill({
         status: 200,
         json: [
-          { id: 'admin-id', name: 'Abraham Admin', email: 'admin@choco.media', role: 'CTO', department: 'Executive', is_system_admin: true, is_manager: true },
-          { id: 'user-id-1', name: 'Alice', email: 'alice@choco.media', role: 'Developer', department: 'Product', is_system_admin: false, is_manager: false, manager_email: 'admin@choco.media' },
-          { id: 'user-id-2', name: 'Bob', email: 'bob@choco.media', role: 'Designer', department: 'Product', is_system_admin: false, is_manager: false, manager_email: 'admin@choco.media' }
+          { id: 'admin-id', name: 'Abraham Admin', email: 'admin@choco.media', role: 'CTO', department: 'Executive', is_system_admin: true, is_manager: true, status: 'active' },
+          { id: 'user-id-1', name: 'Alice', email: 'alice@choco.media', role: 'Developer', department: 'Product', is_system_admin: false, is_manager: false, manager_email: 'admin@choco.media', status: 'active' },
+          { id: 'user-id-2', name: 'Bob', email: 'bob@choco.media', role: 'Designer', department: 'Product', is_system_admin: false, is_manager: false, manager_email: 'admin@choco.media', status: 'active' },
+          { id: 'user-id-3', name: 'Resigned Dave', email: 'dave@choco.media', role: 'QA', department: 'Product', is_system_admin: false, is_manager: false, manager_email: 'admin@choco.media', status: 'resigned' }
         ]
       });
     });
@@ -175,6 +176,31 @@ test.describe('02. Admin Configuration - Comprehensive Tests', () => {
     // 點擊編輯按鈕
     await page.locator('button:has-text("編輯問卷")').first().click();
     await expect(page.locator('h2:has-text("編輯問卷架構")')).toBeVisible();
+  });
+
+  test('員工狀態管理 - 離職人員篩選與標記', async ({ page }) => {
+    // 切換到員工管理
+    await page.click('text=員工管理');
+
+    const mainArea = page.locator('main');
+
+    // 預設應隱藏離職人員 (Resigned Dave 不應出現)
+    await expect(mainArea.locator('text=Alice').first()).toBeVisible();
+    await expect(mainArea.locator('text=Bob').first()).toBeVisible();
+    await expect(mainArea.locator('text=Resigned Dave')).not.toBeVisible();
+
+    // 點擊「顯示離職人員」切換按鈕
+    const toggleBtn = mainArea.locator('button:has-text("顯示離職人員")');
+    await toggleBtn.click();
+
+    // 離職人員現在應可見，且有「已離職」標記
+    await expect(mainArea.locator('text=Resigned Dave')).toBeVisible();
+    await expect(mainArea.locator('text=已離職')).toBeVisible();
+
+    // 再次點擊隱藏
+    const hideBtn = mainArea.locator('button:has-text("隱藏離職人員")');
+    await hideBtn.click();
+    await expect(mainArea.locator('text=Resigned Dave')).not.toBeVisible();
   });
 
 

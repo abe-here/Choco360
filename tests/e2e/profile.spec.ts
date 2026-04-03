@@ -177,15 +177,32 @@ test.describe('03. Profile & Onboarding - Comprehensive Tests', () => {
     await expect(main.locator('text=直屬主管 (名單審核人)')).toBeVisible();
     await expect(main.locator('p:has-text("Abraham Admin")')).toBeVisible();
 
-    // Avatar 互動：刷新 → 出現儲存按鈕 → 取消還原 → 按鈕消失
+    // Avatar 互動：刷新 → 出現儲存横幅 → 取消還原 → 横幅消失
     const refreshBtn = main.locator('button[title="刷新隨機預覽"]');
     await expect(refreshBtn).toBeVisible();
     await refreshBtn.click();
-    await expect(main.locator('button', { hasText: '儲存頭像' })).toBeVisible();
+    // 新的儲存横幅已取代舊式小按鈕
+    await expect(main.locator('p:has-text("您有尚未儲存的個人檔案變更")')).toBeVisible();
+    await expect(main.locator('button', { hasText: '確認儲存' })).toBeVisible();
     await expect(main.locator('button', { hasText: '取消還原' })).toBeVisible();
 
     await main.locator('button', { hasText: '取消還原' }).click();
-    await expect(main.locator('button', { hasText: '儲存頭像' })).not.toBeVisible();
+    await expect(main.locator('p:has-text("您有尚未儲存的個人檔案變更")')).not.toBeVisible();
+    await expect(main.locator('button', { hasText: '確認儲存' })).not.toBeVisible();
+  });
+
+  test('人生格言 (Motto) 欄位應可輸入且出現儲存提示', async ({ page }) => {
+    await page.locator('nav button', { hasText: '個人中心' }).click();
+    const main = page.locator('main');
+
+    // 確認格言輸入框存在
+    const mottoInput = main.locator('input[placeholder*="寫下一句代表您的格言"]');
+    await expect(mottoInput).toBeVisible();
+
+    // 輸入格言內容後，經由儲存横幅應出現
+    await mottoInput.fill('測試人生格言 123');
+    await expect(main.locator('p:has-text("您有尚未儲存的個人檔案變更")')).toBeVisible();
+    await expect(main.locator('button', { hasText: '確認儲存' })).toBeEnabled();
   });
 
   test('開發者留言板應正常載入歷史留言並允許發送新留言', async ({ page }) => {

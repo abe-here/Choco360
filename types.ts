@@ -15,6 +15,15 @@ export interface Question {
   type: QuestionType;
 }
 
+export type SuperpowerCategory = 'strategic' | 'support' | 'leadership';
+
+export interface Superpower {
+  id: string; // generate a pseudo ID later
+  title: string; // e.g. "THE SYNERGY ARCHITECT"
+  category: SuperpowerCategory;
+  description: string; // Why they got this
+}
+
 export type NominationStatus = 'Pending' | 'Approved' | 'Rejected';
 
 export interface Nomination {
@@ -51,6 +60,10 @@ export interface User {
   managerEmail?: string;
   isSystemAdmin?: boolean;
   isManager?: boolean;
+  motto?: string;
+  unlockedSuperpowers?: Superpower[];
+  activeSuperpowerId?: string;
+  status?: 'active' | 'resigned';
 }
 
 export interface FeedbackResponse {
@@ -78,6 +91,7 @@ export interface AIAnalysis {
   strengths: string[];
   growthAreas: string[];
   actionPlan: string[];
+  superpowers?: Superpower[];
 }
 
 export interface SystemMessage {

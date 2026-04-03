@@ -53,12 +53,15 @@ describe('geminiService', () => {
     vi.clearAllMocks();
   });
 
-  it('應正確解析 AI 回傳的 JSON 格式', async () => {
+  it('應正確解析 AI 回傳的 JSON 格式（含 superpowers）', async () => {
     const aiResponse = {
       summary: '測試摘要',
       strengths: ['優點 1', '優點 2', '優點 3'],
       growthAreas: ['建議 1', '建議 2'],
       actionPlan: ['步驟 1', '步驟 2', '步驟 3'],
+      superpowers: [
+        { title: 'THE CODE SORCERER', category: 'strategic', description: '您在技術深度上展現了卓越的能力。' }
+      ],
     };
 
     mockGenerateContent.mockResolvedValue({
@@ -68,6 +71,9 @@ describe('geminiService', () => {
     const result = await analyzeFeedback(mockFeedbacks, mockQuestionnaire);
 
     expect(result).toEqual(aiResponse);
+    expect(result.superpowers).toHaveLength(1);
+    expect(result.superpowers![0].title).toBe('THE CODE SORCERER');
+    expect(result.superpowers![0].category).toBe('strategic');
     expect(mockGenerateContent).toHaveBeenCalled();
   });
 
@@ -77,6 +83,7 @@ describe('geminiService', () => {
       strengths: ['S1'],
       growthAreas: ['G1'],
       actionPlan: ['A1'],
+      superpowers: [],
     };
 
     mockGenerateContent.mockResolvedValue({
@@ -86,6 +93,18 @@ describe('geminiService', () => {
     const result = await analyzeFeedback(mockFeedbacks, mockQuestionnaire);
 
     expect(result).toEqual(aiResponse);
+  });
+
+  it('AI Prompt 應包含 superpowers 提取指令', async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: JSON.stringify({ summary: 'a', strengths: [], growthAreas: [], actionPlan: [], superpowers: [] }),
+    });
+
+    await analyzeFeedback(mockFeedbacks, mockQuestionnaire);
+
+    const callArgs = mockGenerateContent.mock.calls[0][0];
+    expect(callArgs.contents).toContain('superpowers');
+    expect(callArgs.contents).toContain('THE SYNERGY ARCHITECT');
   });
 
   it('當 API Key 缺失時應拋出錯誤', async () => {

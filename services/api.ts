@@ -41,6 +41,11 @@ export const api = {
       throw new Error('找不到您的帳號。請聯繫 HR 或系統管理員為您開通權限後再試。');
     }
 
+    if (existing.status === 'resigned') {
+      await supabase.auth.signOut();
+      throw new Error('您的帳號已停用（離職狀態），無法登入系統。如有疑問請聯繫管理員。');
+    }
+
     await supabase.from('profiles').update({
       updated_at: new Date().toISOString()
     }).eq('id', existing.id);
@@ -54,7 +59,11 @@ export const api = {
       avatar: existing.avatar,
       isSystemAdmin: existing.is_system_admin, 
       isManager: existing.is_manager, 
-      managerEmail: existing.manager_email 
+      managerEmail: existing.manager_email,
+      motto: existing.motto,
+      unlockedSuperpowers: existing.unlocked_superpowers,
+      activeSuperpowerId: existing.active_superpower_id,
+      status: existing.status
     } as User;
   },
 
@@ -69,7 +78,11 @@ export const api = {
       avatar: u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.email}`,
       isSystemAdmin: u.is_system_admin, 
       isManager: u.is_manager, 
-      managerEmail: u.manager_email
+      managerEmail: u.manager_email,
+      motto: u.motto,
+      unlockedSuperpowers: u.unlocked_superpowers,
+      activeSuperpowerId: u.active_superpower_id,
+      status: u.status
     }));
   },
 
@@ -85,6 +98,10 @@ export const api = {
       is_system_admin: user.isSystemAdmin, 
       is_manager: user.isManager, 
       manager_email: user.managerEmail,
+      motto: user.motto,
+      unlocked_superpowers: user.unlockedSuperpowers,
+      active_superpower_id: user.activeSuperpowerId,
+      status: user.status,
       updated_at: new Date().toISOString()
     };
 
@@ -109,7 +126,11 @@ export const api = {
       avatar: u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.email}`,
       isSystemAdmin: u.is_system_admin,
       isManager: u.is_manager,
-      managerEmail: u.manager_email
+      managerEmail: u.manager_email,
+      motto: u.motto,
+      unlockedSuperpowers: u.unlocked_superpowers,
+      activeSuperpowerId: u.active_superpower_id,
+      status: u.status
     };
   },
 
@@ -365,11 +386,14 @@ export const api = {
 
   async getNominationTasks(userId: string): Promise<Nomination[]> {
     const { data } = await supabase.from('nominations')
-      .select('*')
+      .select('*, requester:profiles!nominations_requester_id_fkey(status)')
       .eq('status', 'Approved')
       .or(`reviewer_ids.cs.{${userId}},requester_id.eq.${userId}`);
 
     if (!data) return [];
+
+    // 過濾掉發起人已離職的問卷
+    const activeData = data.filter((n: any) => n.requester?.status !== 'resigned');
 
     const { data: existingFeedbacks } = await supabase.from('feedbacks')
       .select('nomination_id')
@@ -377,7 +401,7 @@ export const api = {
     
     const finishedNominationIds = new Set((existingFeedbacks || []).map(f => f.nomination_id));
     
-    return data
+    return activeData
       .filter(n => !finishedNominationIds.has(n.id))
       .map(n => ({
         id: n.id, 
@@ -554,7 +578,7 @@ export const api = {
         }
       }
 
-      const { data: profiles } = await supabase.from('profiles').select('id, name, email').in('id', Array.from(profilesToFetch));
+      const { data: profiles } = await supabase.from('profiles').select('id, name, email, status').in('id', Array.from(profilesToFetch));
       const profileMap = (profiles || []).reduce((acc: any, p) => ({ ...acc, [p.id]: p }), {});
 
       for (const managerEmail in managerReminders) {
@@ -572,7 +596,7 @@ export const api = {
 
       for (const reviewerId in reviewerReminders) {
         const reviewer = profileMap[reviewerId];
-        if (!reviewer?.email) continue;
+        if (!reviewer?.email || reviewer.status === 'resigned') continue;
         
         const tasks = reviewerReminders[reviewerId].map(t => ({ requesterName: profileMap[t.requesterId]?.name || '同仁', title: t.title }));
         try {
@@ -608,13 +632,13 @@ export const api = {
       const missingIds = (n.reviewer_ids || []).filter((id: string) => !finishedIds.has(id));
 
       if (missingIds.length > 0) {
-        const { data: profiles } = await supabase.from('profiles').select('id, name, email').in('id', [...missingIds, n.requester_id]);
+        const { data: profiles } = await supabase.from('profiles').select('id, name, email, status').in('id', [...missingIds, n.requester_id]);
         const profileMap = (profiles || []).reduce((acc: any, p: any) => ({ ...acc, [p.id]: p }), {});
         const requesterName = profileMap[n.requester_id]?.name || '同仁';
 
         for (const reviewerId of missingIds) {
           const reviewer = profileMap[reviewerId];
-          if (!reviewer?.email) continue;
+          if (!reviewer?.email || reviewer.status === 'resigned') continue;
           try {
             const result = await slackService.notifyReviewerOfPendingTasks(reviewer.email, 1, [{ requesterName, title: n.title }]);
             await this.logNotification({ recipientEmail: reviewer.email, notificationType: '手動推播 - 單一問卷催繳', messageText: `提醒完成 1 項評量任務: ${n.title}`, status: result ? 'sent' : 'failed', errorMessage: result ? undefined : 'Slack notification failed' });

@@ -13,7 +13,14 @@ The Progress Tracking feature addresses the user's need to track the status of 3
    - **已結案 (Completed):** When nomination status is `Approved` and completed responses == total reviewers. Button: `查看 AI 報告` (View AI Report).
 3. **Empty State Onboarding:**
    - If the user has no initiated requests AND no pending evaluation tasks, the system hides the list containers and displays only the dark "How to start" guide section, acting as a clean onboarding screen.
-4. **Action Consistency:**
+4. **Pending Approvals (Manager only):**
+   - Visible only to users with `isManager: true`.
+   - Displays nominations from subordinates with `Pending` status.
+   - UI includes subordinate avatar, name, nomination title, and reviewer count.
+   - Actions: 
+     - **一鍵核准 (Quick Approve)**: Immediately updates status to `Approved` and triggers Slack notifications to reviewers.
+     - **詳細審核 (Detailed Review)**: Navigates to the full `Approvals` tab.
+5. **Action Consistency:**
    - Tracking action buttons use a secondary, clean style (white bg, gray border) to contrast with the primary "start evaluation" action items.
 
 ## Database & API

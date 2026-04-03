@@ -7,6 +7,7 @@ import Nomination from './components/Nomination';
 import Approvals from './components/Approvals';
 import AdminPanel from './components/AdminPanel';
 import Profile from './components/Profile';
+import Community from './components/Community';
 import { api } from './services/api';
 import { checkSupabaseConnection, supabase } from './services/supabase';
 import { User, Questionnaire, Nomination as NominationType } from './types';
@@ -238,8 +239,9 @@ const App: React.FC = () => {
       {activeTab === 'give' && <FeedbackForm users={users} currentUser={currentUser} />}
       {activeTab === 'reports' && <Reports user={currentUser} />}
       {activeTab === 'approvals' && <Approvals users={users} nominations={myApprovals} />}
-      {activeTab === 'profile' && <Profile user={currentUser} onUserUpdate={handleUserUpdate} users={users} />}
-      {activeTab === 'admin' && <AdminPanel users={users} setUsers={setUsers} questionnaires={questionnaires} setQuestionnaires={setQuestionnaires} />}
+      { activeTab === 'profile' && <Profile user={currentUser} onUserUpdate={handleUserUpdate} users={users} /> }
+      { activeTab === 'community' && <Community users={users} currentUser={currentUser} /> }
+      { activeTab === 'admin' && <AdminPanel users={users} setUsers={setUsers} questionnaires={questionnaires} setQuestionnaires={setQuestionnaires} /> }
     </Layout>
   );
 };

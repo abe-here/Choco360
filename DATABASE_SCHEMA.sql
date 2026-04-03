@@ -21,6 +21,10 @@ CREATE TABLE public.profiles (
     manager_email TEXT,
     is_system_admin BOOLEAN DEFAULT false,
     is_manager BOOLEAN DEFAULT false,
+    motto TEXT,
+    unlocked_superpowers JSONB DEFAULT '[]'::jsonb,
+    active_superpower_id TEXT,
+    status TEXT DEFAULT 'active',
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );

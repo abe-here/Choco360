@@ -145,7 +145,8 @@ const Approvals: React.FC<ApprovalsProps> = ({ users, nominations: initialNomina
             const availableUsers = users.filter(u => 
               u.id !== nom.requesterId && 
               !nom.reviewerIds.includes(u.id) &&
-              u.email !== nom.requesterId
+              u.email !== nom.requesterId &&
+              u.status !== 'resigned'
             );
 
             return (

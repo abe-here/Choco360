@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.5.0",
+    "date": "2026-04-03",
+    "summary": "社群功能、超能力個人檔案、離職管理與報告優化",
+    "changes": [
+      "🆕 Community 社群功能 (Community.tsx)：新增社群互動頁面",
+      "🆕 個人檔案超能力裝扮 (Profile.tsx 大幅更新)：支援座右銘與光環個人化設定",
+      "🆕 員工離職狀態管理：API、提名流程與通知均自動跳過已離職人員",
+      "📊 Reports 報告 UI 重構：新增 PDF 匯出功能、落差分析視覺化優化",
+      "🛡️ 管理員面板擴充：新增離職員工管理功能",
+      "📋 Dashboard 一鍵審核功能：主管可於儀表板直接批准待審名單",
+      "✅ 測試覆蓋率大幅提升：新增 admin、nomination、community 等 E2E 測試"
+    ]
+  },
+  {
     "version": "1.4.0",
     "date": "2026-04-03",
     "summary": "持久化版本歷史與 UI 細節優化 (Persistent History & UI Polish)",

@@ -80,6 +80,17 @@ describe('api service', () => {
       (supabase.auth.getSession as any).mockResolvedValue({ data: { session: { user: { email: 'hacker@gmail.com' } } }, error: null });
       await expect(api.getCurrentUser()).rejects.toThrow('受信任的企業帳號');
     });
+
+    it('getCurrentUser: 當帳號為離職狀態 (resigned) 時應登出並拋錯', async () => {
+      const mockSession = { user: { email: 'resigned@choco.media' } };
+      const resignedProfile = { id: 'u-resigned', name: 'Ex Employee', email: 'resigned@choco.media', role: 'Dev', department: 'Eng', is_system_admin: false, is_manager: false, status: 'resigned' };
+
+      (supabase.auth.getSession as any).mockResolvedValue({ data: { session: mockSession }, error: null });
+      mockChain.maybeSingle.mockResolvedValue({ data: resignedProfile, error: null });
+
+      await expect(api.getCurrentUser()).rejects.toThrow('帳號已停用');
+      expect(supabase.auth.signOut).toHaveBeenCalled();
+    });
   });
 
   describe('User Management', () => {
@@ -94,6 +105,24 @@ describe('api service', () => {
       mockChain.single.mockResolvedValue({ data: { ...existingUser }, error: null });
       await api.updateUser(existingUser);
       expect(mockChain.update).toHaveBeenCalled();
+    });
+
+    it('updateUser: 應能正確儲存 motto 與 activeSuperpowerId', async () => {
+      const userWithPersonalization = { 
+        id: '12345678-1234-1234-1234-123456789012', 
+        name: 'Alice', 
+        motto: 'Build fast, break nothing.',
+        activeSuperpowerId: 'sp-001',
+        unlockedSuperpowers: [{ id: 'sp-001', title: 'THE CODE SORCERER', category: 'strategic', description: '技術深度卓越' }]
+      };
+      mockChain.single.mockResolvedValue({ data: { id: userWithPersonalization.id }, error: null });
+      await api.updateUser(userWithPersonalization as any);
+      expect(mockChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ 
+          motto: 'Build fast, break nothing.',
+          active_superpower_id: 'sp-001'
+        })
+      );
     });
   });
 
