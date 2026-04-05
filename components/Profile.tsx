@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, SystemMessage } from '../types';
+import { User, SystemMessage, PRPRecord } from '../types';
 import { api } from '../services/api';
 
 interface ProfileProps {
@@ -16,13 +16,29 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSavingAvatar, setIsSavingAvatar] = useState(false);
   
+  const [prpRecords, setPrpRecords] = useState<PRPRecord[]>([]);
+  const [isFetchingPrp, setIsFetchingPrp] = useState(false);
+  
   const [tempAvatar, setTempAvatar] = useState(user.avatar);
   const [tempMotto, setTempMotto] = useState(user.motto || '');
   const [tempActiveSuperpowerId, setTempActiveSuperpowerId] = useState(user.activeSuperpowerId || '');
 
   useEffect(() => {
     fetchMessages();
-  }, []);
+    fetchPRP();
+  }, [user.id]); // Added dependency for safety
+
+  const fetchPRP = async () => {
+    setIsFetchingPrp(true);
+    try {
+      const records = await api.getPRPRecords(user.id);
+      setPrpRecords(records);
+    } catch (err) {
+      console.error("Failed to fetch PRP", err);
+    } finally {
+      setIsFetchingPrp(false);
+    }
+  };
 
   const fetchMessages = async () => {
     setIsLoadingMessages(true);
@@ -215,6 +231,65 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
         )}
       </section>
 
+      {/* PRP 績效管理區塊 [Sprint 1] */}
+      <section className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden">
+        <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shadow-inner">
+               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-900">PRP 績效管理</h2>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Personal Review Process & AI Synthesis</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-6">
+          {isFetchingPrp && prpRecords.length === 0 ? (
+            <div className="py-12 text-center flex flex-col items-center gap-4">
+               <div className="w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading records...</p>
+            </div>
+          ) : prpRecords.length === 0 ? (
+            <div className="py-12 text-center rounded-[2rem] border-2 border-dashed border-slate-100">
+               <p className="text-slate-300 italic font-bold">目前尚無歷史考核紀錄，將由管理員統一匯入處置後顯示。</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {prpRecords.map(record => (
+                <div key={record.id} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl hover:bg-white hover:border-indigo-100 transition-all group overflow-hidden relative">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-all">
+                    <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  </div>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">{record.period} 年度</p>
+                      <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight italic">Achievement Report</h3>
+                    </div>
+                    <div className={`px-4 py-1.5 rounded-xl font-black text-lg ${
+                      ['S', 'A'].includes(record.finalRating) ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
+                    }`}>
+                      {record.finalRating}
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-6">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Department</span>
+                      <span className="font-bold text-slate-700 text-xs">{record.department}</span>
+                    </div>
+                    <div className="flex flex-col border-l border-slate-200 pl-6">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Items Count</span>
+                      <span className="font-bold text-slate-700 text-xs">{record.items?.length || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* Message Board */}
       <section className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden">
         <div className="p-8 border-b border-slate-100 flex items-center justify-between">
@@ -274,6 +349,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
           ))}
         </div>
       </section>
+
     </div>
   );
 };

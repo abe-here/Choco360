@@ -114,3 +114,60 @@ export interface NotificationLog {
   errorMessage?: string;
   createdAt?: string;
 }
+
+// === PRP 績效考核相關類型 ===
+
+export interface PRPEvaluation {
+  label: string; // 例如 "原主管", "新主管"
+  comment: string;
+  score?: number;
+}
+
+export interface PRPItem {
+  id?: string;
+  prpRecordId?: string;
+  itemType: 'kpi' | 'core_competency';
+  itemLabel: string;
+  importance?: number;
+  selfDescription: string;
+  evaluations: PRPEvaluation[];
+  itemRating?: string;
+  sortOrder: number;
+}
+
+export interface PRPRecord {
+  id: string;
+  userId: string;
+  period: string;
+  department: string;
+  jobTitle: string;
+  employeeCode: string;
+  overallSelfSummary: string;
+  overallManagerComments: PRPEvaluation[];
+  finalRating: string;
+  interviewNotes?: string;
+  source: 'import' | 'manual';
+  items?: PRPItem[];
+  createdAt: string;
+}
+
+// === 年度成長報告 (Year in Review) 相關類型 ===
+
+export interface DivergenceAlert {
+  topic: string;
+  prpPerspective: string;
+  peerPerspective: string;
+  interpretation: string;
+}
+
+export interface RecommendedQuest {
+  title: string;
+  description: string;
+  linkedOpportunity: string;
+}
+
+export interface YearInReview extends AIAnalysis {
+  selfPeerGapInsight: string;
+  divergenceAlerts: DivergenceAlert[];
+  recommendedQuests: RecommendedQuest[];
+}

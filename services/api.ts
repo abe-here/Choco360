@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { User, Questionnaire, FeedbackEntry, FeedbackResponse, Nomination, AIAnalysis, SystemMessage, NotificationLog } from '../types';
+import { User, Questionnaire, FeedbackEntry, FeedbackResponse, Nomination, AIAnalysis, SystemMessage, NotificationLog, PRPRecord, PRPItem } from '../types';
 import { slackService } from './slackService';
 
 const ALLOWED_DOMAIN = '@choco.media';
@@ -304,7 +304,8 @@ export const api = {
   },
 
   async getFeedbacksForUser(userId: string): Promise<FeedbackEntry[]> {
-    const { data } = await supabase.from('feedbacks').select('*, feedback_responses(*)').eq('to_user_id', userId);
+    const { data, error } = await supabase.from('feedbacks').select('*, feedback_responses(*)').eq('to_user_id', userId);
+    if (error) console.error('🔴 [API] getFeedbacksForUser ERROR:', error.message, error.code, 'userId:', userId);
     return (data || []).map(f => ({
       id: f.id, 
       fromUserId: f.from_user_id, 
@@ -353,7 +354,8 @@ export const api = {
   },
 
   async getNominationsByRequester(userId: string): Promise<Nomination[]> {
-    const { data } = await supabase.from('nominations').select('*').eq('requester_id', userId).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('nominations').select('*').eq('requester_id', userId).order('created_at', { ascending: false });
+    if (error) console.error('🔴 [API] getNominationsByRequester ERROR:', error.message, error.code, 'userId:', userId);
     return (data || []).map(n => ({
       id: n.id, 
       requesterId: n.requester_id, 
@@ -654,5 +656,150 @@ export const api = {
       throw e;
     }
     return { sent: sentCount, failed: failedCount };
+  },
+
+  // --- PRP ---
+  async getPRPRecords(userId: string): Promise<PRPRecord[]> {
+    const { data, error } = await supabase
+      .from('prp_records')
+      .select('*, prp_items(*)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching PRP records:', error);
+      return [];
+    }
+    return (data || []).map((r: any) => ({
+      id: r.id,
+      userId: r.user_id,
+      period: r.period,
+      department: r.department,
+      jobTitle: r.job_title,
+      employeeCode: r.employee_code,
+      overallSelfSummary: r.overall_self_summary,
+      overallManagerComments: r.overall_manager_comments || [],
+      finalRating: r.final_rating,
+      interviewNotes: r.interview_notes,
+      source: r.source || 'import',
+      createdAt: r.created_at,
+      items: (r.prp_items || []).map((i: any) => ({
+        id: i.id,
+        prpRecordId: i.prp_record_id,
+        itemType: i.item_type,
+        itemLabel: i.item_label,
+        importance: i.importance,
+        selfDescription: i.self_description,
+        evaluations: i.evaluations || [],
+        itemRating: i.item_rating,
+        sortOrder: i.sort_order || 0
+      }))
+    })) as PRPRecord[];
+  },
+
+  async savePRPRecord(record: Partial<PRPRecord>, items: Partial<PRPItem>[]): Promise<void> {
+    const payloadSize = JSON.stringify(record).length + JSON.stringify(items).length;
+    console.log(`💾 [API] Starting PRP save. Payload size: approx ${payloadSize} chars.`);
+    console.log("💾 [API] User ID:", record.userId);
+
+    // 強制純量化保護：避免解析資料帶有奇怪的 prototype 或者不可見字元
+    const insertPayload = JSON.parse(JSON.stringify({
+      user_id: record.userId,
+      period: record.period ? String(record.period).trim() : 'Unknown',
+      department: record.department ? String(record.department).trim() : null,
+      job_title: record.jobTitle ? String(record.jobTitle).trim() : null,
+      employee_code: record.employeeCode ? String(record.employeeCode).trim() : null,
+      overall_self_summary: record.overallSelfSummary ? String(record.overallSelfSummary) : null,
+      overall_manager_comments: Array.isArray(record.overallManagerComments) ? record.overallManagerComments : [],
+      final_rating: record.finalRating ? String(record.finalRating).trim() : null,
+      interview_notes: record.interviewNotes ? String(record.interviewNotes) : null,
+      source: record.source || 'import',
+      raw_document: (record as any).rawDocument ? String((record as any).rawDocument) : null
+    }));
+
+    console.log("📦 [API] 準備送往資料庫主表的精確 Payload:", insertPayload);
+
+    // 1. 執行最小化主表插入
+    const { data: rDataArr, error: rError } = await supabase.from('prp_records').insert(insertPayload).select();
+
+    if (rError) {
+      console.error("🔴 [API] Error inserting prp_records:", rError);
+      throw rError;
+    }
+
+    const rData = rDataArr && rDataArr.length > 0 ? rDataArr[0] : null;
+    if (!rData) {
+      console.error("🔴 [API] No record data returned after insert.");
+      throw new Error("儲存失敗：無法取得寫入後的紀錄 ID (請確認 RLS 權限與 select 權限)");
+    }
+
+    console.log("✅ [API] Record saved, id:", rData.id, ". Now saving items...");
+
+    // 2. 執行明細表插入
+    if (items && items.length > 0) {
+      const { error: iError } = await supabase.from('prp_items').insert(items.map((i, idx) => ({
+        prp_record_id: rData.id,
+        item_type: i.itemType,
+        item_label: i.itemLabel,
+        importance: i.importance,
+        self_description: i.selfDescription,
+        evaluations: i.evaluations || [],
+        item_rating: i.itemRating,
+        sort_order: i.sortOrder ?? idx
+      })));
+      
+      if (iError) {
+        console.error("🔴 [API] Error inserting prp_items:", iError);
+        throw iError;
+      }
+      console.log("✅ [API] All items saved successfully.");
+    }
+  },
+
+  async getAllPRPRecords(): Promise<PRPRecord[]> {
+    const { data, error } = await supabase
+      .from('prp_records')
+      .select('*, prp_items(*)')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching all PRP records:', error);
+      return [];
+    }
+
+    return (data || []).map((r: any) => ({
+      id: r.id,
+      userId: r.user_id,
+      period: r.period,
+      department: r.department,
+      jobTitle: r.job_title,
+      employeeCode: r.employee_code,
+      overallSelfSummary: r.overall_self_summary,
+      overallManagerComments: r.overall_manager_comments || [],
+      finalRating: r.final_rating,
+      interviewNotes: r.interview_notes,
+      source: r.source || 'import',
+      createdAt: r.created_at,
+      items: (r.prp_items || []).map((i: any) => ({
+        id: i.id,
+        prpRecordId: i.prp_record_id,
+        itemType: i.item_type,
+        itemLabel: i.item_label,
+        importance: i.importance,
+        selfDescription: i.self_description,
+        evaluations: i.evaluations || [],
+        itemRating: i.item_rating,
+        sortOrder: i.sort_order || 0
+      }))
+    })) as PRPRecord[];
+  },
+
+  async deletePRPRecord(recordId: string): Promise<void> {
+    const { error } = await supabase
+      .from('prp_records')
+      .delete()
+      .eq('id', recordId);
+    
+    if (error) throw error;
   }
 };

@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { User, Questionnaire, Nomination, FeedbackEntry, QuestionType, NotificationLog } from '../types';
 import { api } from '../services/api';
 import { slackService } from '../services/slackService';
+import PRPAdminManager from './PRPAdminManager';
 
 interface AdminPanelProps {
   users: User[];
@@ -52,7 +53,7 @@ function parseNotificationGroup(text: string): string {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires, setQuestionnaires }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'activity' | 'users' | 'forms' | 'notifications'>('activity');
+  const [activeSubTab, setActiveSubTab] = useState<'activity' | 'users' | 'forms' | 'notifications' | 'faq' | 'prp'>('activity');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('All');
   const [showResigned, setShowResigned] = useState(false);
@@ -626,7 +627,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{q.dimensions?.length || 0} 個維度</p>
                   <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">v{new Date(q.createdAt || '').toLocaleDateString()}</p>
                 </div>
-                <button onClick={() => { setEditingForm(q); setIsFormPanelOpen(true); }} className="text-indigo-600 font-black text-sm hover:underline text-sm uppercase tracking-widest">編輯問卷</button>
+                {allNominations.some(n => n.questionnaireId === q.id) ? (
+                  <button onClick={() => { setEditingForm(q); setIsFormPanelOpen(true); }} className="text-slate-400 font-black text-sm hover:underline text-sm uppercase tracking-widest flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    查看架構
+                  </button>
+                ) : (
+                  <button onClick={() => { setEditingForm(q); setIsFormPanelOpen(true); }} className="text-indigo-600 font-black text-sm hover:underline text-sm uppercase tracking-widest">編輯問卷</button>
+                )}
               </div>
             </div>
           </div>
@@ -716,14 +724,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
         setIsSavingForm(false); 
       }
     };
+    const isReadOnly = editingForm.id ? allNominations.some(n => n.questionnaireId === editingForm.id) : false;
+
     return (
       <>
         <div onClick={() => setIsFormPanelOpen(false)} className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md animate-in fade-in" />
         <div className="fixed top-0 right-0 z-[101] h-full w-full max-w-5xl bg-white shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
-          <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-indigo-600 text-white shadow-lg">
+          <div className={`p-8 border-b border-slate-100 flex items-center justify-between ${isReadOnly ? 'bg-slate-700' : 'bg-indigo-600'} text-white shadow-lg`}>
             <div>
-              <h2 className="text-2xl font-black">{editingForm.id ? '編輯問卷架構' : '設計新問卷'}</h2>
-              <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest mt-1">注意：修改問卷可能影響數據進度一致性</p>
+              <h2 className="text-2xl font-black">{isReadOnly ? '查看問卷架構 (唯讀)' : (editingForm.id ? '編輯問卷架構' : '設計新問卷')}</h2>
+              <p className={`${isReadOnly ? 'text-slate-300' : 'text-indigo-200'} text-xs font-bold uppercase tracking-widest mt-1`}>
+                {isReadOnly ? '此問卷已有進行中或歷史評鑑，為保護資料一致性目前僅供查看' : '注意：修改問卷可能影響數據進度一致性'}
+              </p>
             </div>
             <button onClick={() => setIsFormPanelOpen(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
           </div>
@@ -732,18 +744,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">問卷標題</label>
                 <input 
+                  disabled={isReadOnly}
                   value={editingForm.title || ''} 
                   onChange={e => setEditingForm(p => ({ ...p!, title: e.target.value }))} 
-                  className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-100 transition-all text-lg" 
+                  className={`w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-100 transition-all text-lg ${isReadOnly ? 'opacity-70 grayscale cursor-not-allowed' : ''}`} 
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">版本描述</label>
                 <textarea 
+                  disabled={isReadOnly}
                   rows={2} 
                   value={editingForm.description || ''} 
                   onChange={e => setEditingForm(p => ({ ...p!, description: e.target.value }))} 
-                  className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-100 transition-all" 
+                  className={`w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-100 transition-all ${isReadOnly ? 'opacity-70 grayscale cursor-not-allowed' : ''}`} 
                 />
               </div>
             </section>
@@ -751,25 +765,33 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
               {editingForm.dimensions?.map((dim, dIdx) => (
                 <div key={dim.id || dIdx} className="bg-white border border-slate-200 rounded-[2rem] shadow-sm overflow-hidden animate-in slide-in-from-bottom-2">
                   <div className="p-6 bg-slate-900 text-white flex justify-between items-center gap-4">
-                    <input value={dim.name} onChange={e => {
-                      setEditingForm(prev => {
-                        if (!prev) return prev;
-                        const newDims = [...(prev.dimensions || [])];
-                        newDims[dIdx] = { ...dim, name: e.target.value };
-                        return { ...prev, dimensions: newDims };
-                      });
-                    }} className="bg-transparent border-none font-black text-xl p-0 focus:ring-0 w-full text-white" />
-                    <button type="button" onClick={() => {
-                      setEditingForm(prev => {
-                        if (!prev) return prev;
-                        return { ...prev, dimensions: (prev.dimensions || []).filter((_, i) => i !== dIdx) };
-                      });
-                    }} className="text-white/40 hover:text-white transition-colors"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1h-4a1 1 0 00-1-1v3M4 7h16" /></svg></button>
+                    <input 
+                      disabled={isReadOnly}
+                      value={dim.name} 
+                      onChange={e => {
+                        setEditingForm(prev => {
+                          if (!prev) return prev;
+                          const newDims = [...(prev.dimensions || [])];
+                          newDims[dIdx] = { ...dim, name: e.target.value };
+                          return { ...prev, dimensions: newDims };
+                        });
+                      }} 
+                      className={`bg-transparent border-none font-black text-xl p-0 focus:ring-0 w-full text-white ${isReadOnly ? 'cursor-default' : ''}`} 
+                    />
+                    {!isReadOnly && (
+                      <button type="button" onClick={() => {
+                        setEditingForm(prev => {
+                          if (!prev) return prev;
+                          return { ...prev, dimensions: (prev.dimensions || []).filter((_, i) => i !== dIdx) };
+                        });
+                      }} className="text-white/40 hover:text-white transition-colors"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1h-4a1 1 0 00-1-1v3M4 7h16" /></svg></button>
+                    )}
                   </div>
                   <div className="p-8 space-y-6">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">評鑑目的 (AI 分析關鍵)</label>
                       <input 
+                        disabled={isReadOnly}
                         value={dim.purpose} 
                         onChange={e => {
                           setEditingForm(prev => {
@@ -779,13 +801,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                             return { ...prev, dimensions: newDims };
                           });
                         }} 
-                        className="w-full text-sm font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 outline-none shadow-inner" 
+                        className={`w-full text-sm font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 outline-none shadow-inner ${isReadOnly ? 'opacity-70 grayscale cursor-not-allowed' : ''}`} 
                       />
                     </div>
                     <div className="space-y-4">
                       {dim.questions.map((qu, qIdx) => (
                         <div key={qu.id || qIdx} className="flex gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm items-center">
                           <textarea 
+                            disabled={isReadOnly}
                             rows={1} 
                             value={qu.text} 
                             onChange={e => {
@@ -798,9 +821,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                                 return { ...prev, dimensions: newDims };
                               });
                             }} 
-                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-900 resize-none outline-none focus:border-indigo-300 transition-all" 
+                            className={`w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-900 resize-none outline-none focus:border-indigo-300 transition-all ${isReadOnly ? 'opacity-70 grayscale cursor-not-allowed' : ''}`} 
                           />
                           <select 
+                            disabled={isReadOnly}
                             value={qu.type} 
                             onChange={e => {
                               setEditingForm(prev => {
@@ -812,47 +836,59 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
                                 return { ...prev, dimensions: newDims };
                               });
                             }} 
-                            className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-black text-slate-500 outline-none"
+                            className={`bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-black text-slate-500 outline-none ${isReadOnly ? 'opacity-70 grayscale cursor-not-allowed' : ''}`}
                           >
                             <option value="rating">量分</option>
                             <option value="text">簡答</option>
                           </select>
-                          <button type="button" onClick={() => {
-                            setEditingForm(prev => {
-                              if (!prev) return prev;
-                              const newDims = [...(prev.dimensions || [])];
-                              const newQuestions = newDims[dIdx].questions.filter((_, idx) => idx !== qIdx);
-                              newDims[dIdx] = { ...newDims[dIdx], questions: newQuestions };
-                              return { ...prev, dimensions: newDims };
-                            });
-                          }} className="text-slate-300 hover:text-rose-500 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                          {!isReadOnly && (
+                            <button type="button" onClick={() => {
+                              setEditingForm(prev => {
+                                if (!prev) return prev;
+                                const newDims = [...(prev.dimensions || [])];
+                                const newQuestions = newDims[dIdx].questions.filter((_, idx) => idx !== qIdx);
+                                newDims[dIdx] = { ...newDims[dIdx], questions: newQuestions };
+                                return { ...prev, dimensions: newDims };
+                              });
+                            }} className="text-slate-300 hover:text-rose-500 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                          )}
                         </div>
                       ))}
-                      <button type="button" onClick={() => {
-                        setEditingForm(prev => {
-                          if (!prev) return prev;
-                          const newDims = [...(prev.dimensions || [])];
-                          const newQuestions = [...newDims[dIdx].questions, { id: `q_${Date.now()}_${Math.random()}`, text: '', type: 'rating' as QuestionType }];
-                          newDims[dIdx] = { ...newDims[dIdx], questions: newQuestions };
-                          return { ...prev, dimensions: newDims };
-                        });
-                      }} className="text-xs font-black text-indigo-600 flex items-center gap-2"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>新增問項</button>
+                      {!isReadOnly && (
+                        <button type="button" onClick={() => {
+                          setEditingForm(prev => {
+                            if (!prev) return prev;
+                            const newDims = [...(prev.dimensions || [])];
+                            const newQuestions = [...newDims[dIdx].questions, { id: `q_${Date.now()}_${Math.random()}`, text: '', type: 'rating' as QuestionType }];
+                            newDims[dIdx] = { ...newDims[dIdx], questions: newQuestions };
+                            return { ...prev, dimensions: newDims };
+                          });
+                        }} className="text-xs font-black text-indigo-600 flex items-center gap-2"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>新增問項</button>
+                      )}
                     </div>
                   </div>
                 </div>
               ))}
-              <button type="button" onClick={() => setEditingForm(prev => {
-                if (!prev) return prev;
-                return { 
-                  ...prev, 
-                  dimensions: [...(prev.dimensions || []), { id: `d_${Date.now()}_${Math.random()}`, name: '', purpose: '', questions: [{ id: `q_${Date.now()}_${Math.random()}`, text: '', type: 'rating' as QuestionType }] }] 
-                };
-              })} className="w-full py-5 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-black hover:border-indigo-300 hover:text-indigo-600 transition-all">+ 新增評鑑維度區塊</button>
+              {!isReadOnly && (
+                <button type="button" onClick={() => setEditingForm(prev => {
+                  if (!prev) return prev;
+                  return { 
+                    ...prev, 
+                    dimensions: [...(prev.dimensions || []), { id: `d_${Date.now()}_${Math.random()}`, name: '', purpose: '', questions: [{ id: `q_${Date.now()}_${Math.random()}`, text: '', type: 'rating' as QuestionType }] }] 
+                  };
+                })} className="w-full py-5 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-black hover:border-indigo-300 hover:text-indigo-600 transition-all">+ 新增評鑑維度區塊</button>
+              )}
             </div>
           </div>
           <div className="p-8 border-t bg-white flex gap-4 shadow-2xl shadow-slate-900/10">
-            <button onClick={() => setIsFormPanelOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-600 font-black rounded-2xl hover:bg-slate-200 transition-all">放棄修改</button>
-            <button onClick={handleFormSubmitInternal} disabled={isSavingForm} className="flex-1 py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-600 transition-all disabled:opacity-50">{isSavingForm ? '正在發佈...' : '確認並發佈問卷'}</button>
+            <button onClick={() => setIsFormPanelOpen(false)} className={`flex-1 py-4 ${isReadOnly ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'} font-black rounded-2xl hover:opacity-90 transition-all`}>
+              {isReadOnly ? '關閉視窗' : '放棄修改'}
+            </button>
+            {!isReadOnly && (
+              <button onClick={handleFormSubmitInternal} disabled={isSavingForm} className="flex-1 py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-600 transition-all disabled:opacity-50">
+                {isSavingForm ? '正在發佈...' : '確認並發佈問卷'}
+              </button>
+            )}
           </div>
         </div>
       </>
@@ -1170,6 +1206,77 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
     </div>
   );
 
+  const renderFAQ = () => (
+    <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+      <div className="px-4 border-b border-slate-200 pb-6">
+        <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+          <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          系統操作指南 (FAQ)
+        </h2>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">常見系統管理操作與例外狀況處理方針</p>
+      </div>
+
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden p-8 space-y-4">
+        <details className="group bg-slate-50 rounded-2xl border border-slate-100 open:bg-indigo-50/30 open:border-indigo-100 transition-all duration-300">
+          <summary className="flex items-center justify-between p-6 cursor-pointer select-none">
+            <h3 className="font-black text-slate-900 group-open:text-indigo-600 transition-colors text-lg">💡 如何人工合併兩份重複發起的 360 評估問卷？</h3>
+            <span className="ml-4 shrink-0 p-2 bg-white rounded-xl shadow-sm text-slate-400 group-open:rotate-180 transition-transform duration-300">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+            </span>
+          </summary>
+          <div className="px-6 pb-6 pt-2 text-sm text-slate-600 space-y-6 animate-in slide-in-from-top-4">
+            <div className="space-y-2">
+              <p className="font-black text-slate-900">情境描述 (Issue)</p>
+              <p className="leading-relaxed">使用者因為操作失誤，對不同的受邀者送出了兩份「評估內容完全相同」的問卷。這兩份皆處於進行中，且部分已開始填寫。我們需要將其合併為一份，確保分數與回饋集中且不遺失。</p>
+            </div>
+            <div className="space-y-4">
+              <p className="font-black text-slate-900 border-b border-indigo-100 pb-2">🛠️ 執行步驟</p>
+              <div className="space-y-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-200">
+                  <p className="font-bold text-indigo-600 mb-2">1. 取得需要處理的問卷 ID (UUID)</p>
+                  <p>請先進入資料庫 (或 Supabase 後台) 查詢 <code className="bg-slate-100 px-1.5 py-0.5 rounded text-rose-500">nominations</code> 表，確認：</p>
+                  <ul className="list-disc ml-5 mt-2 space-y-1">
+                    <li><span className="font-bold text-emerald-600">問卷 A</span> (要保留的主問卷) 的 <code className="bg-slate-100 px-1.5 py-0.5 rounded">id</code></li>
+                    <li><span className="font-bold text-rose-600">問卷 B</span> (要被刪除的副問卷) 的 <code className="bg-slate-100 px-1.5 py-0.5 rounded">id</code></li>
+                  </ul>
+                </div>
+                
+                <div className="bg-white p-4 rounded-xl border border-slate-200">
+                  <p className="font-bold text-indigo-600 mb-2">2. 執行合併 SQL 指令</p>
+                  <p className="mb-3 text-slate-500 text-xs">將以下指令中的 ID 替換後，依序於 SQL Editor 執行：</p>
+                  
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold text-slate-700">【步驟 2.1】合併問卷受邀者名單並剔除重複</p>
+                    <pre className="bg-slate-900 text-slate-50 p-4 rounded-xl overflow-x-auto text-xs leading-relaxed">
+{`UPDATE public.nominations 
+SET reviewer_ids = ARRAY(
+    SELECT DISTINCT unnest(reviewer_ids || (SELECT reviewer_ids FROM public.nominations WHERE id = '<問卷 B 的 ID>'))
+) 
+WHERE id = '<問卷 A 的 ID>';`}
+                    </pre>
+
+                    <p className="text-xs font-bold text-slate-700 mt-4">【步驟 2.2】移轉已填寫的回饋與評分資料</p>
+                    <pre className="bg-slate-900 text-slate-50 p-4 rounded-xl overflow-x-auto text-xs leading-relaxed">
+{`UPDATE public.feedbacks 
+SET nomination_id = '<問卷 A 的 ID>' 
+WHERE nomination_id = '<問卷 B 的 ID>';`}
+                    </pre>
+
+                    <p className="text-xs font-bold text-slate-700 mt-4">【步驟 2.3】刪除舊有問卷 B</p>
+                    <pre className="bg-slate-900 text-slate-50 p-4 rounded-xl overflow-x-auto text-xs leading-relaxed">
+{`DELETE FROM public.nominations 
+WHERE id = '<問卷 B 的 ID>';`}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 relative">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl">
@@ -1179,7 +1286,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
             { id: 'activity', label: '活動監控' }, 
             { id: 'users', label: '員工管理' }, 
             { id: 'forms', label: '問卷設計' }, 
-            { id: 'notifications', label: '通知管理' } 
+            { id: 'prp', label: 'PRP 績效管理' },
+            { id: 'notifications', label: '通知管理' },
+            { id: 'faq', label: '系統操作指南 (FAQ)' }
           ].map((tab) => (
             <button key={tab.id} onClick={() => setActiveSubTab(tab.id as any)} className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${activeSubTab === tab.id ? 'bg-white text-slate-900 shadow-xl' : 'text-white hover:bg-white/5'}`}>{tab.label}</button>
           ))}
@@ -1189,7 +1298,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, questionnaires
       {activeSubTab === 'activity' && renderActivityMonitoring()}
       {activeSubTab === 'users' && renderUserManagement()}
       {activeSubTab === 'forms' && renderFormManagement()}
+      {activeSubTab === 'prp' && <PRPAdminManager users={users} />}
       {activeSubTab === 'notifications' && renderNotificationManagement()}
+      {activeSubTab === 'faq' && renderFAQ()}
 
       {renderUserEditor()}
       {renderFormEditor()}

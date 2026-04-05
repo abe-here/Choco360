@@ -118,6 +118,7 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
         user.isSystemAdmin ? api.getUsers() : Promise.resolve([])
       ]);
 
+
       setMyNominations(noms);
       setFeedbacks(fbs);
       setQuestionnaires(qs);
@@ -146,7 +147,12 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
 
   const currentFeedbacks = useMemo(() => {
     if (!selectedNomination) return [];
-    return feedbacks.filter(f => f.nominationId === selectedNomination.id);
+    // 優先按 nominationId 精確比對（新資料）
+    const byNomination = feedbacks.filter(f => f.nominationId === selectedNomination.id);
+    if (byNomination.length > 0) return byNomination;
+    // Fallback：若 nomination_id 為 null（舊資料），改用 questionnaireId 相容顯示
+    const byQuestionnaire = feedbacks.filter(f => !f.nominationId && f.questionnaireId === selectedNomination.questionnaireId);
+    return byQuestionnaire;
   }, [selectedNomination, feedbacks]);
 
   const currentQuestionnaire = useMemo(() => {
