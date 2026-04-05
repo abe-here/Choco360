@@ -69,33 +69,26 @@ CREATE POLICY "Users can view own prp_items" ON public.prp_items
         )
     );
 
+-- 使用 security definer 函式避免 RLS 遞迴查詢導致 timeout
+CREATE OR REPLACE FUNCTION public.is_system_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT COALESCE(
+    (SELECT is_system_admin FROM public.profiles WHERE id = auth.uid()),
+    false
+  );
+$$;
+
 -- 管理員 (Admin) 擁有一切權限 (CRUD)
 CREATE POLICY "Admins can maintain all prp_records" ON public.prp_records
     TO authenticated
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid() AND is_system_admin = true
-        )
-    )
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid() AND is_system_admin = true
-        )
-    );
+    USING (public.is_system_admin())
+    WITH CHECK (public.is_system_admin());
 
 CREATE POLICY "Admins can maintain all prp_items" ON public.prp_items
     TO authenticated
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid() AND is_system_admin = true
-        )
-    )
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE id = auth.uid() AND is_system_admin = true
-        )
-    );
+    USING (public.is_system_admin())
+    WITH CHECK (public.is_system_admin());

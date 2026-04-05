@@ -92,12 +92,6 @@ const PRPImportModal: React.FC<PRPImportModalProps> = ({ userId, users = [], isA
     setStep(2); // 借用 Step 2 的 Loading 狀態
     console.log("🚀 [PRP Import] Starting save process...");
     
-    // 設定 30 秒超時與警告
-    const timeoutId = setTimeout(() => {
-      console.warn("⚠️ [PRP Import] Save process is taking longer than 30s...");
-      window.alert("存檔程序已超過 30 秒尚未回應。\n\n這通常代表資料庫連線受阻、RLS 政策死結或是 Markdown 內容過大。請查看開發者工具(F12)的 Network 面板確認請求狀態。");
-    }, 30000);
-
     try {
       await api.savePRPRecord({
         userId: selectedUserId,
@@ -109,16 +103,13 @@ const PRPImportModal: React.FC<PRPImportModalProps> = ({ userId, users = [], isA
         overallManagerComments: parsedData.overallManagerComments || [],
         finalRating: parsedData.finalRating || '',
         source: 'import',
-        rawDocument: rawContent
       } as any, parsedData.items as any);
       
-      clearTimeout(timeoutId);
       console.log("✅ [PRP Import] Save successful!");
       window.alert("🎉 績效紀錄儲存成功！");
       onSuccess();
       onClose();
     } catch (err: any) {
-      clearTimeout(timeoutId);
       console.error("🔴 [PRP Import] Save process failed:", err);
       // alert 在 api.ts 已經有噴過一次詳細的了，這裡做 UI 更新
       setError("儲存失敗：" + (err.message || "未知伺服器錯誤"));

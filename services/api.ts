@@ -713,24 +713,26 @@ export const api = {
       overall_manager_comments: Array.isArray(record.overallManagerComments) ? record.overallManagerComments : [],
       final_rating: record.finalRating ? String(record.finalRating).trim() : null,
       interview_notes: record.interviewNotes ? String(record.interviewNotes) : null,
-      source: record.source || 'import',
-      raw_document: (record as any).rawDocument ? String((record as any).rawDocument) : null
+      source: record.source || 'import'
     }));
 
     console.log("📦 [API] 準備送往資料庫主表的精確 Payload:", insertPayload);
 
-    // 1. 執行最小化主表插入
-    const { data: rDataArr, error: rError } = await supabase.from('prp_records').insert(insertPayload).select();
+    // 1. 執行主表插入（只回傳 id，避免大型欄位造成 response 過大）
+    const { data: rData, error: rError } = await supabase
+      .from('prp_records')
+      .insert(insertPayload)
+      .select('id')
+      .single();
 
     if (rError) {
       console.error("🔴 [API] Error inserting prp_records:", rError);
       throw rError;
     }
 
-    const rData = rDataArr && rDataArr.length > 0 ? rDataArr[0] : null;
-    if (!rData) {
-      console.error("🔴 [API] No record data returned after insert.");
-      throw new Error("儲存失敗：無法取得寫入後的紀錄 ID (請確認 RLS 權限與 select 權限)");
+    if (!rData?.id) {
+      console.error("🔴 [API] No id returned after insert.");
+      throw new Error("儲存失敗：無法取得寫入後的紀錄 ID (請確認 RLS 權限)");
     }
 
     console.log("✅ [API] Record saved, id:", rData.id, ". Now saving items...");
