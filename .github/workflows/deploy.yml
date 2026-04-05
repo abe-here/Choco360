@@ -44,6 +44,7 @@ jobs:
             --build-arg VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }} \
             --build-arg VITE_SLACK_BOT_TOKEN=${{ secrets.VITE_SLACK_BOT_TOKEN }} \
             --build-arg VITE_APP_URL=${{ secrets.VITE_APP_URL }} \
+            --build-arg VITE_GEMINI_API_KEY=${{ secrets.VITE_GEMINI_API_KEY }} \
             -t ${{ env.REGION }}-docker.pkg.dev/$PROJECT_ID/$SERVICE_NAME/$SERVICE_NAME:${{ github.sha }} .
           docker push ${{ env.REGION }}-docker.pkg.dev/$PROJECT_ID/$SERVICE_NAME/$SERVICE_NAME:${{ github.sha }}
 
