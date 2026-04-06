@@ -117,6 +117,11 @@ export interface NotificationLog {
 
 // === PRP 績效考核相關類型 ===
 
+export interface PRPSupervisor {
+  role: string;     // 例如 "原主管", "新主管", "核准主管"
+  userId: string;   // 對應 profiles.id
+}
+
 export interface PRPEvaluation {
   label: string; // 例如 "原主管", "新主管"
   comment: string;
@@ -149,6 +154,7 @@ export interface PRPRecord {
   interviewNotes?: string;
   source: 'import' | 'manual';
   items?: PRPItem[];
+  supervisors?: PRPSupervisor[];
   createdAt: string;
 }
 

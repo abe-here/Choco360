@@ -165,6 +165,8 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
       <PRPErrorBoundary onReset={() => setEditingPrpRecord(null)}>
         <PRPEditPage
           record={editingPrpRecord}
+          users={users}
+          readOnly={true}
           onBack={() => setEditingPrpRecord(null)}
           onSaved={(updated) => {
             setPrpRecords(prev => prev.map(r => r.id === updated.id ? updated : r));
@@ -337,9 +339,9 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
                       setEditingPrpRecord(record);
                     }}
                     className="absolute bottom-4 right-4 w-9 h-9 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-xl flex items-center justify-center shadow-lg transition-all active:scale-90"
-                    title="進入編輯"
+                    title="查看績效詳情"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                   </button>
                 </div>
               ))}

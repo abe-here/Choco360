@@ -61,6 +61,8 @@ const PRPAdminManager: React.FC<PRPAdminManagerProps> = ({ users }) => {
     return (
       <PRPEditPage
         record={editingRecord}
+        users={users}
+        isAdminMode={true}
         onBack={() => setEditingRecord(null)}
         onSaved={(updated) => {
           setRecords(prev => prev.map(r => r.id === updated.id ? updated : r));
