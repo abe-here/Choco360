@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { User, PRPRecord } from '../types';
 import { api } from '../services/api';
 import PRPImportModal from './PRPImportModal';
+import PRPEditPage from './PRPEditPage';
 
 interface PRPAdminManagerProps {
   users: User[];
@@ -13,6 +14,7 @@ const PRPAdminManager: React.FC<PRPAdminManagerProps> = ({ users }) => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('All');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [editingRecord, setEditingRecord] = useState<PRPRecord | null>(null);
 
   useEffect(() => {
     fetchRecords();
@@ -53,6 +55,20 @@ const PRPAdminManager: React.FC<PRPAdminManagerProps> = ({ users }) => {
     if (selectedPeriod === 'All') return records;
     return records.filter(r => r.period === selectedPeriod);
   }, [records, selectedPeriod]);
+
+  // 進入編輯模式：替換整個元件為 PRPEditPage
+  if (editingRecord) {
+    return (
+      <PRPEditPage
+        record={editingRecord}
+        onBack={() => setEditingRecord(null)}
+        onSaved={(updated) => {
+          setRecords(prev => prev.map(r => r.id === updated.id ? updated : r));
+          setEditingRecord(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -139,7 +155,17 @@ const PRPAdminManager: React.FC<PRPAdminManagerProps> = ({ users }) => {
                       <span className="text-xl font-black text-indigo-600">{r.finalRating}</span>
                     </td>
                     <td className="px-8 py-6 text-right">
-                      <button 
+                      <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => setEditingRecord(r)}
+                        className="p-2.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shadow-sm"
+                        title="編輯此筆紀錄"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
                         onClick={() => handleDelete(r.id, user?.name || '此紀錄')}
                         disabled={isDeleting === r.id}
                         className="p-2.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm"
@@ -153,6 +179,7 @@ const PRPAdminManager: React.FC<PRPAdminManagerProps> = ({ users }) => {
                           </svg>
                         )}
                       </button>
+                      </div>
                     </td>
                   </tr>
                 );

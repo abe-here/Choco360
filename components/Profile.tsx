@@ -8,7 +8,8 @@ class PRPErrorBoundary extends Component<
   { children: React.ReactNode; onReset: () => void },
   { hasError: boolean; errorMessage: string }
 > {
-  constructor(props: any) {
+  declare state: { hasError: boolean; errorMessage: string };
+  constructor(props: { children: React.ReactNode; onReset: () => void }) {
     super(props);
     this.state = { hasError: false, errorMessage: '' };
   }

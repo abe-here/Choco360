@@ -298,13 +298,13 @@ const PRPEditPage: React.FC<PRPEditPageProps> = ({ record, onBack, onSaved }) =>
             <div className="h-5 w-1.5 bg-indigo-600 rounded-full" />
             <h2 className="font-black text-slate-900 text-lg tracking-tight">KPI 工作目標</h2>
           </div>
-          {items.filter(i => i.itemType === 'kpi').map((item) => {
+          {items.filter(i => i.itemType === 'kpi').map((item: PRPItem) => {
             const idx = items.indexOf(item);
             return (
               <ItemCard
                 key={item.id ?? idx}
                 item={item}
-                onChange={updates => handleItemChange(idx, updates)}
+                onChange={(updates: Partial<PRPItem>) => handleItemChange(idx, updates)}
               />
             );
           })}
@@ -318,13 +318,13 @@ const PRPEditPage: React.FC<PRPEditPageProps> = ({ record, onBack, onSaved }) =>
             <div className="h-5 w-1.5 bg-amber-500 rounded-full" />
             <h2 className="font-black text-slate-900 text-lg tracking-tight">核心職能</h2>
           </div>
-          {items.filter(i => i.itemType === 'core_competency').map((item) => {
+          {items.filter(i => i.itemType === 'core_competency').map((item: PRPItem) => {
             const idx = items.indexOf(item);
             return (
               <ItemCard
                 key={item.id ?? idx}
                 item={item}
-                onChange={updates => handleItemChange(idx, updates)}
+                onChange={(updates: Partial<PRPItem>) => handleItemChange(idx, updates)}
               />
             );
           })}
