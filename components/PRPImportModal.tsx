@@ -89,31 +89,51 @@ const PRPImportModal: React.FC<PRPImportModalProps> = ({ userId, users = [], isA
       if (!selectedUserId) setError("請先選擇要關聯的員工");
       return;
     }
+    setError(null);
     setStep(2); // 借用 Step 2 的 Loading 狀態
     console.log("🚀 [PRP Import] Starting save process...");
-    
+
+    // 逾時保護：15 秒內未完成視為失敗（避免 session 過期或網路不穩造成無限轉圈）
+    const SAVE_TIMEOUT_MS = 15_000;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('SAVE_TIMEOUT')), SAVE_TIMEOUT_MS)
+    );
+
     try {
-      await api.savePRPRecord({
-        userId: selectedUserId,
-        period: parsedData.period,
-        department: parsedData.department,
-        jobTitle: parsedData.jobTitle,
-        employeeCode: parsedData.employeeCode,
-        overallSelfSummary: parsedData.overallSelfSummary || '',
-        overallManagerComments: parsedData.overallManagerComments || [],
-        finalRating: parsedData.finalRating || '',
-        source: 'import',
-      } as any, parsedData.items as any);
-      
+      await Promise.race([
+        api.savePRPRecord({
+          userId: selectedUserId,
+          period: parsedData.period,
+          department: parsedData.department,
+          jobTitle: parsedData.jobTitle,
+          employeeCode: parsedData.employeeCode,
+          overallSelfSummary: parsedData.overallSelfSummary || '',
+          overallManagerComments: parsedData.overallManagerComments || [],
+          finalRating: parsedData.finalRating || '',
+          source: 'import',
+        } as any, parsedData.items as any),
+        timeoutPromise,
+      ]);
+
       console.log("✅ [PRP Import] Save successful!");
       window.alert("🎉 績效紀錄儲存成功！");
       onSuccess();
       onClose();
     } catch (err: any) {
       console.error("🔴 [PRP Import] Save process failed:", err);
-      // alert 在 api.ts 已經有噴過一次詳細的了，這裡做 UI 更新
-      setError("儲存失敗：" + (err.message || "未知伺服器錯誤"));
-      setStep(3);
+
+      // 根據錯誤類型給出清楚的提示，並確保回到預覽頁（資料仍在）
+      let userMessage: string;
+      if (err.message === 'SAVE_TIMEOUT') {
+        userMessage = "⏱ 儲存逾時（超過 15 秒未回應），可能是連線不穩或登入階段已過期。\n\n解析資料仍保留，請直接再按一次「確認儲存」。";
+      } else if (err.message?.includes('JWT') || err.message?.includes('token') || err.status === 401 || err.code === 'PGRST301') {
+        userMessage = "🔐 登入階段已過期。\n\n解析資料仍保留，請重新整理頁面並登入後，重新匯入即可。";
+      } else {
+        userMessage = `儲存失敗：${err.message || '未知伺服器錯誤'}\n\n解析資料仍保留，請再試一次。`;
+      }
+
+      setError(userMessage);
+      setStep(3); // 退回預覽頁，讓使用者可以重新操作
     }
   };
 
@@ -184,6 +204,19 @@ const PRPImportModal: React.FC<PRPImportModalProps> = ({ userId, users = [], isA
 
           {step === 3 && parsedData && (
             <div className="animate-in fade-in slide-in-from-bottom-4 space-y-10">
+
+              {/* 儲存失敗 Banner（只在有錯誤時顯示） */}
+              {error && (
+                <div className="p-5 bg-rose-50 border border-rose-200 rounded-3xl flex gap-4 items-start">
+                  <span className="text-2xl mt-0.5">⚠️</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-black text-rose-700 mb-1">儲存失敗</p>
+                    <p className="text-sm text-rose-600 whitespace-pre-line leading-relaxed">{error}</p>
+                  </div>
+                  <button onClick={() => setError(null)} className="text-rose-300 hover:text-rose-500 transition-colors text-xl font-black leading-none">×</button>
+                </div>
+              )}
+
               {/* Profile Bar */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-slate-50 rounded-3xl border border-slate-100 shadow-inner text-center">
                 <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">年度</p><p className="font-black text-slate-900">{parsedData.period}</p></div>

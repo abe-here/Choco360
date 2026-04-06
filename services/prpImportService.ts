@@ -14,6 +14,7 @@ export interface ParsedPRPItem {
   selfDescription: string;         // 員工自述，空字串代表無內容
   evaluations: PRPEvaluationEntry[];
   itemRating: 'S' | 'A' | 'B' | 'C' | 'D' | null; // 個別等第
+  averageScore: number | null;     // 表格「平均」欄數字，無則為 null
 }
 
 export interface ParsedPRP {
@@ -25,7 +26,7 @@ export interface ParsedPRP {
   overallSelfSummary: string;
   finalRating: 'S' | 'A' | 'B' | 'C' | 'D' | null;
   items: ParsedPRPItem[];
-  overallManagerComments: { label: string; comment: string }[];
+  overallManagerComments: { label: string; comment: string; score: number | null }[];
 }
 
 // ── Normalization ──────────────────────────────────────────────────────────
@@ -83,9 +84,15 @@ function normalizeItems(raw: any): ParsedPRPItem[] {
     const desc = normalizeString(item.selfDescription);
     // 若 label 仍是通用標籤（如 "KPI", "KPI 1", "核心職能"），用 selfDescription 首句替代
     const isGenericLabel = !label || /^(kpi\s*\d*|核心職能\s*\d*|competency\s*\d*)$/i.test(label);
-    const fallbackLabel = isGenericLabel
-      ? (desc.split('\n')[0].replace(/^[•\-\d.]+\s*/, '').trim().slice(0, 20) || `項目 ${idx + 1}`)
+    let fallbackLabel = isGenericLabel
+      ? (desc.split('\n')[0].replace(/^[•\-\d.]+\s*/, '').trim().slice(0, 30) || `項目 ${idx + 1}`)
       : label;
+
+    // 清除 [KPI] / [核心職能] 前綴，以及 ": 目標：" 等說明性後綴（劉金梅格式）
+    fallbackLabel = fallbackLabel
+      .replace(/^\[(kpi|核心職能|core_competency)\]\s*/i, '')
+      .replace(/[:：]\s*(目標|指標|說明).*$/i, '')
+      .trim() || `項目 ${idx + 1}`;
 
     return {
       itemType: normalizeItemType(item.itemType),
@@ -94,21 +101,37 @@ function normalizeItems(raw: any): ParsedPRPItem[] {
       selfDescription: desc,
       evaluations: normalizeEvaluations(item.evaluations),
       itemRating: normalizeRating(item.itemRating),
+      averageScore: normalizeScore(item.averageScore ?? item.average ?? null),
     };
   });
 }
 
-function normalizeManagerComments(raw: any): { label: string; comment: string }[] {
+function normalizeManagerComments(raw: any): { label: string; comment: string; score: number | null }[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .filter((c: any) => c && normalizeString(c.label) && normalizeString(c.comment))
+    // 只要 label 非空就保留（comment 可空、score 可 null，避免遺失核准主管整體分數）
+    .filter((c: any) => c && normalizeString(c.label))
     .map((c: any) => ({
       label: normalizeString(c.label),
       comment: normalizeString(c.comment),
+      score: normalizeScore(c.score ?? null),
     }));
 }
 
 function normalizePRPOutput(raw: any): ParsedPRP {
+  const items = normalizeItems(raw.items);
+  let finalRating = normalizeRating(raw.finalRating);
+
+  // 兜底：若整份文件所有項目都沒有 evaluations（如 Abraham 格式）
+  // 代表 AI 可能誤將整體 finalRating 當成第一個 KPI 的 itemRating
+  // → 清除所有 itemRating，並補齊 finalRating
+  const hasAnyEvaluations = items.some(i => i.evaluations.length > 0);
+  if (!hasAnyEvaluations) {
+    const firstItemRating = items.find(i => i.itemRating)?.itemRating ?? null;
+    if (!finalRating && firstItemRating) finalRating = firstItemRating;
+    items.forEach(i => { i.itemRating = null; });
+  }
+
   return {
     period: normalizePeriod(raw.period),
     name: normalizeString(raw.name),
@@ -116,8 +139,8 @@ function normalizePRPOutput(raw: any): ParsedPRP {
     employeeCode: normalizeString(raw.employeeCode),
     jobTitle: normalizeString(raw.jobTitle),
     overallSelfSummary: normalizeString(raw.overallSelfSummary),
-    finalRating: normalizeRating(raw.finalRating),
-    items: normalizeItems(raw.items),
+    finalRating,
+    items,
     overallManagerComments: normalizeManagerComments(raw.overallManagerComments),
   };
 }
@@ -137,15 +160,22 @@ export const prpImportService = {
       你的目標是將非結構化的 Markdown 表格轉換為精確的結構化 JSON。
       
       特別注意考評表的【多列邏輯】與【跨行對應】：
-      1. 【內容解析】：項目描述中若包含數字列表 (1. 2. 3.) 或多段內容，請務必完整擷取，並整理成條列式格式（每點以 "• " 開頭並換行）。
+      1. 【內容解析】：項目描述中若包含多段內容，請務必完整擷取，並整理成條列式格式（每點以 "• " 開頭並換行分隔）。以下格式都應轉換為條列：
+         - 數字列表：「1. xxx 2. xxx」→ 每項一個 "• " 條目
+         - 方括號標籤：「\[高複雜度遷徙\]：xxx \[關鍵技術決策\]：yyy」→ 每個 [tag]: 為一個 "• " 條目（保留標籤文字）
+         - 換行段落：多行文字各自獨立一個條目
+         - 不可將所有內容串成一行。
       2. 【意見對應】：
          - 同一列中，後方通常存在多個主管意見。請依位置區分：
            - 第 6 欄通常是「原主管意見」，對應第 10 欄的分數。
            - 第 13 欄（如有 1. 2. 3.. 之類內容）通常是「核准主管意見」，對應第 11 欄的分數。
          - 若下方出現標有「新主管意見」的特殊跨行，請將其內容與對應的分數合併到同一個 KPI 項目的 evaluations 陣列中。
       3. 【等第 Checkbox】：
-         - 識別表格中的勾選框。格式如「□S ☑A □B」或「[ ]S [x]A [ ]B」。
-         - 若看到「☑」或「[x]」，請將該符號後方的英文字母作為 finalRating 或 itemRating 回傳（例如：☑A -> "A"）。
+         - 識別表格中的勾選框。格式如「□S ☑A □B」或「[ ]S [x]A [ ]B」或「□S ■A □B」（■ 也代表勾選）。
+         - 若看到「☑」、「[x]」或「■」，請將該符號後方的英文字母作為 finalRating 或 itemRating 回傳（例如：☑A -> "A"）。
+         - 【重要】itemRating vs finalRating 判斷：
+           * 若整份文件中所有 KPI/核心職能項目都沒有任何主管分數與評語（evaluations 皆為空），表示這份文件沒有逐項評分，等第欄的值應視為整體 finalRating，所有 itemRating 應設為 null。
+           * 若各 KPI 都有各自的主管分數，則等第欄的值才是各 KPI 的 itemRating。
       4. 【數值處理】：分數欄位若是文字（如「分數」或「-」），請設為 null 或忽略。
       5. 【核准主管欄位的跨行判斷】：
          - 核准主管的意見欄（通常在第 13 欄）、分數欄（第 11 欄）、等第欄（第 14 欄），有時在排版上僅出現在第一個 KPI 的同列，但邏輯上屬於整份考核的「整體核准評核」，並不隸屬於該 KPI。
@@ -239,10 +269,12 @@ export const prpImportService = {
            - score: 分數 (數字)
          - itemRating: 該項獲評等第 (S/A/B/C/D)，如有
       7. overallSelfSummary: 綜合考核列中的「自述/自評內容」文字。
-      8. overallManagerComments: 陣列。請從綜合考核列中，提取出屬於「主管」或「部門主管」的意見。
-         - label: "部門主管"
-         - comment: 總結意見內容
-      9. finalRating: 最終核定等第 (S/A/B/C/D)
+      8. overallManagerComments: 陣列。請從以下兩個來源提取：
+         (a) 綜合考核列中屬於主管的總結評語（label: "原主管" / "新主管" / "部門主管"）
+         (b) 只出現在第一個 KPI 列的核准主管整體分數與等第（label: "核准主管"），即使沒有文字評語也要包含其分數
+         每筆格式：{ label, comment（可空字串）, score（數字或 null）}
+      9. items[].averageScore: 每個 KPI/核心職能對應的「平均」欄數字（如 86、85.4），無則省略
+      10. finalRating: 最終核定等第 (S/A/B/C/D)
     `;
 
     try {
@@ -283,7 +315,8 @@ export const prpImportService = {
                         required: ['label', 'comment']
                       }
                     },
-                    itemRating: { type: Type.STRING }
+                    itemRating: { type: Type.STRING },
+                    averageScore: { type: Type.NUMBER }
                   },
                   required: ['itemType', 'itemLabel', 'selfDescription', 'evaluations']
                 }
@@ -295,7 +328,8 @@ export const prpImportService = {
                   type: Type.OBJECT,
                   properties: {
                     label: { type: Type.STRING },
-                    comment: { type: Type.STRING }
+                    comment: { type: Type.STRING },
+                    score: { type: Type.NUMBER }
                   },
                   required: ['label', 'comment']
                 }

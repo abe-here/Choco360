@@ -670,20 +670,8 @@ export const api = {
       console.error('Error fetching PRP records:', error);
       return [];
     }
-    return (data || []).map((r: any) => ({
-      id: r.id,
-      userId: r.user_id,
-      period: r.period,
-      department: r.department,
-      jobTitle: r.job_title,
-      employeeCode: r.employee_code,
-      overallSelfSummary: r.overall_self_summary,
-      overallManagerComments: r.overall_manager_comments || [],
-      finalRating: r.final_rating,
-      interviewNotes: r.interview_notes,
-      source: r.source || 'import',
-      createdAt: r.created_at,
-      items: (r.prp_items || []).map((i: any) => ({
+    return (data || []).map((r: any) => {
+      const items = (r.prp_items || []).map((i: any) => ({
         id: i.id,
         prpRecordId: i.prp_record_id,
         itemType: i.item_type,
@@ -692,9 +680,22 @@ export const api = {
         selfDescription: i.self_description,
         evaluations: i.evaluations || [],
         itemRating: i.item_rating,
+        averageScore: i.average_score ?? null,
         sortOrder: i.sort_order || 0
-      }))
-    })) as PRPRecord[];
+      }));
+      // 兜底修正：若所有 items 都沒有 evaluations（純自填格式），
+      // 等第欄屬於整份考核，不屬於個別 KPI，清除所有 itemRating
+      const hasAnyEvaluations = items.some((i: any) => i.evaluations.length > 0);
+      if (!hasAnyEvaluations) items.forEach((i: any) => { i.itemRating = undefined; });
+      return {
+        id: r.id, userId: r.user_id, period: r.period, department: r.department,
+        jobTitle: r.job_title, employeeCode: r.employee_code,
+        overallSelfSummary: r.overall_self_summary,
+        overallManagerComments: r.overall_manager_comments || [],
+        finalRating: r.final_rating, interviewNotes: r.interview_notes,
+        source: r.source || 'import', createdAt: r.created_at, items,
+      };
+    }) as PRPRecord[];
   },
 
   async savePRPRecord(record: Partial<PRPRecord>, items: Partial<PRPItem>[]): Promise<void> {
@@ -747,6 +748,7 @@ export const api = {
         self_description: i.selfDescription,
         evaluations: i.evaluations || [],
         item_rating: i.itemRating,
+        average_score: i.averageScore ?? null,
         sort_order: i.sortOrder ?? idx
       })));
       
@@ -756,6 +758,41 @@ export const api = {
       }
       console.log("✅ [API] All items saved successfully.");
     }
+  },
+
+  async updatePRPRecord(
+    recordId: string,
+    recordUpdates: { overallSelfSummary?: string },
+    itemUpdates: { id: string; selfDescription: string; itemLabel: string }[]
+  ): Promise<void> {
+    console.log(`✏️ [API] Updating PRP record ${recordId}...`);
+
+    // 1. 更新主表 overall_self_summary
+    const { error: rError } = await supabase
+      .from('prp_records')
+      .update({ overall_self_summary: recordUpdates.overallSelfSummary ?? null })
+      .eq('id', recordId);
+
+    if (rError) {
+      console.error('🔴 [API] Error updating prp_records:', rError);
+      throw rError;
+    }
+
+    // 2. 逐筆更新 prp_items
+    for (const item of itemUpdates) {
+      if (!item.id) continue;
+      const { error: iError } = await supabase
+        .from('prp_items')
+        .update({ self_description: item.selfDescription, item_label: item.itemLabel })
+        .eq('id', item.id);
+
+      if (iError) {
+        console.error(`🔴 [API] Error updating prp_item ${item.id}:`, iError);
+        throw iError;
+      }
+    }
+
+    console.log('✅ [API] PRP record updated successfully.');
   },
 
   async getAllPRPRecords(): Promise<PRPRecord[]> {
