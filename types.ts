@@ -132,6 +132,7 @@ export interface PRPItem {
   selfDescription: string;
   evaluations: PRPEvaluation[];
   itemRating?: string;
+  averageScore?: number | null; // 多位主管分數的加權平均（來自表格「平均」欄）
   sortOrder: number;
 }
 
