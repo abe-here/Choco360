@@ -1,6 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, ErrorInfo } from 'react';
 import { User, SystemMessage, PRPRecord } from '../types';
 import { api } from '../services/api';
+import PRPEditPage from './PRPEditPage';
+
+// Error Boundary：攔截 PRPEditPage 內的 runtime 錯誤（例如 TipTap 初始化問題）
+class PRPErrorBoundary extends Component<
+  { children: React.ReactNode; onReset: () => void },
+  { hasError: boolean; errorMessage: string }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, errorMessage: '' };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, errorMessage: error.message };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('🔴 [PRPEditPage] Render error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-12 text-center space-y-4">
+          <p className="text-2xl">⚠️</p>
+          <p className="font-black text-slate-900">編輯頁面載入失敗</p>
+          <p className="text-sm text-slate-500">{this.state.errorMessage}</p>
+          <button
+            onClick={() => { this.setState({ hasError: false, errorMessage: '' }); this.props.onReset(); }}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-black text-sm hover:bg-indigo-500"
+          >
+            返回個人中心
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface ProfileProps {
   user: User;
@@ -18,6 +54,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
   
   const [prpRecords, setPrpRecords] = useState<PRPRecord[]>([]);
   const [isFetchingPrp, setIsFetchingPrp] = useState(false);
+  const [editingPrpRecord, setEditingPrpRecord] = useState<PRPRecord | null>(null);
   
   const [tempAvatar, setTempAvatar] = useState(user.avatar);
   const [tempMotto, setTempMotto] = useState(user.motto || '');
@@ -120,6 +157,22 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
 
   const activeSuperpower = user.unlockedSuperpowers?.find(s => s.id === tempActiveSuperpowerId);
   const auraColor = activeSuperpower ? getSuperpowerColor(activeSuperpower.category) : '';
+
+  // Drill-down：進入 PRP 編輯頁
+  if (editingPrpRecord) {
+    return (
+      <PRPErrorBoundary onReset={() => setEditingPrpRecord(null)}>
+        <PRPEditPage
+          record={editingPrpRecord}
+          onBack={() => setEditingPrpRecord(null)}
+          onSaved={(updated) => {
+            setPrpRecords(prev => prev.map(r => r.id === updated.id ? updated : r));
+            setEditingPrpRecord(null);
+          }}
+        />
+      </PRPErrorBoundary>
+    );
+  }
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -258,20 +311,13 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {prpRecords.map(record => (
-                <div key={record.id} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl hover:bg-white hover:border-indigo-100 transition-all group overflow-hidden relative">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-all">
+                <div key={record.id} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl hover:bg-white hover:border-indigo-200 hover:shadow-lg transition-all group overflow-hidden relative">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-all pointer-events-none">
                     <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   </div>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">{record.period} 年度</p>
-                      <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight italic">Achievement Report</h3>
-                    </div>
-                    <div className={`px-4 py-1.5 rounded-xl font-black text-lg ${
-                      ['S', 'A'].includes(record.finalRating) ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
-                    }`}>
-                      {record.finalRating}
-                    </div>
+                  <div>
+                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">{record.period} 年度</p>
+                    <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight italic">Achievement Report</h3>
                   </div>
                   <div className="mt-4 flex items-center gap-6">
                     <div className="flex flex-col">
@@ -283,6 +329,17 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
                       <span className="font-bold text-slate-700 text-xs">{record.items?.length || 0}</span>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log('🖊️ [PRP] Opening editor:', record.id, record.period);
+                      setEditingPrpRecord(record);
+                    }}
+                    className="absolute bottom-4 right-4 w-9 h-9 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-xl flex items-center justify-center shadow-lg transition-all active:scale-90"
+                    title="進入編輯"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  </button>
                 </div>
               ))}
             </div>

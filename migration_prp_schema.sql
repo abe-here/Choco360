@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS public.prp_items (
     evaluations JSONB DEFAULT '[]'::jsonb,   -- [{ label: "原主管", comment: "...", score: 84 }, ...]
     
     item_rating TEXT,                        -- S/A/B/C/D (個別項目的評等，可為空)
+    average_score NUMERIC,                   -- 多位主管分數的加權平均（來自表格「平均」欄）
     sort_order INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -92,3 +93,10 @@ CREATE POLICY "Admins can maintain all prp_items" ON public.prp_items
     TO authenticated
     USING (public.is_system_admin())
     WITH CHECK (public.is_system_admin());
+
+-- ==============================================
+-- Migration patch: 補充 average_score 欄位
+-- 若已執行過初始 schema，請在 Supabase SQL Editor 執行以下語句：
+-- ==============================================
+ALTER TABLE public.prp_items
+    ADD COLUMN IF NOT EXISTS average_score NUMERIC; -- 多位主管分數的加權平均
