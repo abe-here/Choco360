@@ -762,15 +762,27 @@ export const api = {
 
   async updatePRPRecord(
     recordId: string,
-    recordUpdates: { overallSelfSummary?: string },
-    itemUpdates: { id: string; selfDescription: string; itemLabel: string }[]
+    recordUpdates: {
+      overallSelfSummary?: string;
+      supervisors?: import('../types').PRPSupervisor[];
+      overallManagerComments?: import('../types').PRPEvaluation[];
+    },
+    itemUpdates: { id: string; selfDescription: string; itemLabel: string; evaluations?: import('../types').PRPEvaluation[] }[]
   ): Promise<void> {
     console.log(`✏️ [API] Updating PRP record ${recordId}...`);
 
-    // 1. 更新主表 overall_self_summary
+    // 1. 更新主表
+    const recordPayload: Record<string, any> = {
+      overall_self_summary: recordUpdates.overallSelfSummary ?? null,
+      supervisors: recordUpdates.supervisors ?? [],
+    };
+    if (recordUpdates.overallManagerComments !== undefined) {
+      recordPayload.overall_manager_comments = recordUpdates.overallManagerComments;
+    }
+
     const { error: rError } = await supabase
       .from('prp_records')
-      .update({ overall_self_summary: recordUpdates.overallSelfSummary ?? null })
+      .update(recordPayload)
       .eq('id', recordId);
 
     if (rError) {
@@ -781,9 +793,16 @@ export const api = {
     // 2. 逐筆更新 prp_items
     for (const item of itemUpdates) {
       if (!item.id) continue;
+      const itemPayload: Record<string, any> = {
+        self_description: item.selfDescription,
+        item_label: item.itemLabel,
+      };
+      if (item.evaluations !== undefined) {
+        itemPayload.evaluations = item.evaluations;
+      }
       const { error: iError } = await supabase
         .from('prp_items')
-        .update({ self_description: item.selfDescription, item_label: item.itemLabel })
+        .update(itemPayload)
         .eq('id', item.id);
 
       if (iError) {
@@ -818,6 +837,7 @@ export const api = {
       finalRating: r.final_rating,
       interviewNotes: r.interview_notes,
       source: r.source || 'import',
+      supervisors: r.supervisors || [],
       createdAt: r.created_at,
       items: (r.prp_items || []).map((i: any) => ({
         id: i.id,

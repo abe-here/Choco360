@@ -2,9 +2,16 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PRPItem } from "../types";
 
 export interface PRPEvaluationEntry {
-  label: string;        // "原主管" | "核准主管" | "新主管" | "部門主管"
+  label: string;        // "原主管" | "新主管"
   comment: string;      // 評語文字，空字串代表無內容
   score: number | null; // 數字分數，無則為 null
+}
+
+// 核准主管 / 部門主管 → 原主管；其餘未知 label → 忽略
+function remapEvalLabel(label: string): string | null {
+  if (label === '原主管' || label === '核准主管' || label === '部門主管') return '原主管';
+  if (label === '新主管') return '新主管';
+  return null;
 }
 
 export interface ParsedPRPItem {
@@ -69,12 +76,12 @@ function normalizeString(raw: any): string {
 function normalizeEvaluations(raw: any): PRPEvaluationEntry[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .filter((e: any) => e && normalizeString(e.label))
-    .map((e: any) => ({
-      label: normalizeString(e.label),
-      comment: normalizeString(e.comment),
-      score: normalizeScore(e.score),
-    }));
+    .map((e: any) => {
+      const remapped = remapEvalLabel(normalizeString(e.label));
+      if (!remapped) return null;
+      return { label: remapped, comment: normalizeString(e.comment), score: normalizeScore(e.score) };
+    })
+    .filter((e): e is PRPEvaluationEntry => e !== null);
 }
 
 function normalizeItems(raw: any): ParsedPRPItem[] {
@@ -109,13 +116,14 @@ function normalizeItems(raw: any): ParsedPRPItem[] {
 function normalizeManagerComments(raw: any): { label: string; comment: string; score: number | null }[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    // 只要 label 非空就保留（comment 可空、score 可 null，避免遺失核准主管整體分數）
-    .filter((c: any) => c && normalizeString(c.label))
-    .map((c: any) => ({
-      label: normalizeString(c.label),
-      comment: normalizeString(c.comment),
-      score: normalizeScore(c.score ?? null),
-    }));
+    .map((c: any) => {
+      const remapped = remapEvalLabel(normalizeString(c.label));
+      if (!remapped) return null;
+      // 綜合考核列沒有分數欄，score 一律不儲存
+      return { label: remapped, comment: normalizeString(c.comment), score: null };
+    })
+    .filter((c): c is { label: string; comment: string; score: number | null } => c !== null)
+    .filter(c => c.comment.length > 0); // 無評語內容的條目不儲存
 }
 
 function normalizePRPOutput(raw: any): ParsedPRP {
@@ -168,7 +176,7 @@ export const prpImportService = {
       2. 【意見對應】：
          - 同一列中，後方通常存在多個主管意見。請依位置區分：
            - 第 6 欄通常是「原主管意見」，對應第 10 欄的分數。
-           - 第 13 欄（如有 1. 2. 3.. 之類內容）通常是「核准主管意見」，對應第 11 欄的分數。
+           - 第 13 欄若有「核准主管」相關內容，請忽略，不要存入任何欄位。
          - 若下方出現標有「新主管意見」的特殊跨行，請將其內容與對應的分數合併到同一個 KPI 項目的 evaluations 陣列中。
       3. 【等第 Checkbox】：
          - 識別表格中的勾選框。格式如「□S ☑A □B」或「[ ]S [x]A [ ]B」或「□S ■A □B」（■ 也代表勾選）。
@@ -177,9 +185,9 @@ export const prpImportService = {
            * 若整份文件中所有 KPI/核心職能項目都沒有任何主管分數與評語（evaluations 皆為空），表示這份文件沒有逐項評分，等第欄的值應視為整體 finalRating，所有 itemRating 應設為 null。
            * 若各 KPI 都有各自的主管分數，則等第欄的值才是各 KPI 的 itemRating。
       4. 【數值處理】：分數欄位若是文字（如「分數」或「-」），請設為 null 或忽略。
-      5. 【核准主管欄位的跨行判斷】：
-         - 核准主管的意見欄（通常在第 13 欄）、分數欄（第 11 欄）、等第欄（第 14 欄），有時在排版上僅出現在第一個 KPI 的同列，但邏輯上屬於整份考核的「整體核准評核」，並不隸屬於該 KPI。
-         - 判斷依據：若只有第一個 KPI 列有核准主管欄位，而後續 KPI 列該欄位皆為空，則應將此核准資訊視為整體評核，存入 overallManagerComments，不要放入任何 KPI 的 evaluations。
+      5. 【核准主管欄位處理】：
+         - 核准主管的意見（通常在第 13 欄）與分數（第 11 欄）一律忽略，不要存入任何欄位。
+         - 但第 14 欄的勾選框（□S ■A □B）代表整份考核的「最終等第」，仍須解析為 finalRating，不可忽略。
       6. 【佔位符識別】：若某欄位內容僅為「1. 2. 3.」、「1.2.3.」或純數字加句點的空白樣板文字，視為空白佔位符，不要當作真實內容解析。
       7. 【項目標題萃取】：每個 KPI 或核心職能項目都必須有一個有意義的 itemLabel（標題），規則如下：
          - 優先辨識：若 selfDescription 欄位開頭有 Markdown 粗體標記（**標題文字**），提取粗體文字作為 itemLabel，並從 selfDescription 中移除該粗體標記，只保留描述內容。
@@ -194,11 +202,12 @@ export const prpImportService = {
       【核心規則】
       1. **完整性**：selfDescription 必須收錄所有內容。不可因為內容過長而截斷。
       2. **意見歸因**：
-         - 表格中一列可能有多段意見。請將其識別為不同 label： "原主管", "核准主管", "新主管"。
-         - 範例：如果同一列 13 欄有內容，這通常是「核准主管」的意見，其分數在第 11 欄。
+         - 每個意見欄位（原主管欄、新主管欄）只產生**一筆** evaluation entry。
+         - 同一欄內的多個條目（例如「- 條目1 - 條目2」或「1. 條目1 2. 條目2」）必須合併為同一筆 comment，條目間以換行分隔，每條加「• 」前綴。不可拆成多筆。
+         - 核准主管欄位（第 13 欄意見、第 11 欄分數）一律忽略，不要存入任何欄位。
       3. **跨行處理**：KPI 行之後，若緊跟著標示有「新主管意見」的行位，請將該行內容視為同一項目的補充，存入 evaluations。
       4. **checkbox 識別**：尋找「☑」字樣。例如「□S ☑A □B □C □D」代表最終等第為 "A"。請將此值填入 finalRating。
-      5. **核准主管欄位歸屬判斷**：若核准主管的意見、分數、等第只出現在第一個 KPI 的列，而其他 KPI 列該欄皆為空，代表這是整體核准評核，應存入 overallManagerComments（label: "核准主管"），不要放入第一個 KPI 的 evaluations。
+      5. **核准主管欄位處理**：核准主管的意見與分數一律忽略，請勿存入 evaluations 或 overallManagerComments。但核准主管列的勾選框（□S ■A □B，通常在第 14 欄）代表整份考核的最終等第，仍須解析為 finalRating。
       6. **佔位符過濾**：若某欄位內容僅為「1. 2. 3.」或類似的空白樣板文字（無實際評語），視為空白，不解析為意見內容。
       7. **itemLabel 標題規則**：每個項目都必須有有意義的標題，不可用「KPI」、「KPI 1」等通用標籤。
          - 若 selfDescription 開頭有 **粗體文字**，提取為 itemLabel，並從 selfDescription 移除該粗體標記。
@@ -227,7 +236,7 @@ export const prpImportService = {
             "itemRating": null
           }
         ],
-        "overallManagerComments": [{"label": "核准主管", "comment": null, "score": 80.6}],
+        "overallManagerComments": [],
         "finalRating": "C"
       }
 
@@ -242,11 +251,11 @@ export const prpImportService = {
       - finalRating (最終評等)
 □S ■A □B）通常是「整份考核的最終等第」。
          - 除非確定每個 KPI 或職能都有獨立分開的評等結果，否則請將其解析為 finalRating，不要將其填入單一項目的 itemRating 中。
-      4. 【多重主管評語與分數】：精確擷取該項目對應的所有意見欄位（例如：原主管意見、初評、核准主管意見）。若有數字分數請填入，若出現 "-" 或文字則設為 null。
+      4. 【多重主管評語與分數】：精確擷取該項目對應的原主管與新主管意見欄位。若有數字分數請填入，若出現 "-" 或文字則設為 null。核准主管欄位一律忽略。
       5. 【綜合考核列 (Overall Assessment)】：
-         - 這一行通常在表格末尾。包含自評與主管總結評語（可能包含原主管與新主管多段內容）。
-         - **關鍵**：若內容中包含多個觀察點（如以 1. 2. 3. 或 - 開頭），請在 JSON 中將其整理為條列格式（每點換行並加 "• "）。
-      6. 【多主管意見】：若「主管意見」欄位中同時出現原主管、新主管或多段意見，請分別存入 evaluations 陣列。
+         - 這一行通常在表格末尾。包含自評與主管總結評語（可能包含原主管與新主管兩個不同欄位的內容）。
+         - 每個意見欄只產生**一筆** overallManagerComments entry。同一欄內的多個條目（例如「- xxx - yyy」）必須合併成單一 comment 字串，每條以「• 」開頭、換行分隔。絕對不可將同一欄的多個條目拆成多筆 entry。
+      6. 【多主管意見】：原主管欄與新主管欄是**不同的欄位**，各自產生一筆 entry。但同一欄位內的多個條目永遠只算一筆。
 
       【Markdown 內容】
       ${markdown}
@@ -269,9 +278,8 @@ export const prpImportService = {
            - score: 分數 (數字)
          - itemRating: 該項獲評等第 (S/A/B/C/D)，如有
       7. overallSelfSummary: 綜合考核列中的「自述/自評內容」文字。
-      8. overallManagerComments: 陣列。請從以下兩個來源提取：
-         (a) 綜合考核列中屬於主管的總結評語（label: "原主管" / "新主管" / "部門主管"）
-         (b) 只出現在第一個 KPI 列的核准主管整體分數與等第（label: "核准主管"），即使沒有文字評語也要包含其分數
+      8. overallManagerComments: 陣列。請從綜合考核列中提取屬於原主管或新主管的總結評語（label 只能是 "原主管" 或 "新主管"）。核准主管、部門主管等資訊一律忽略。
+         **重要**：每個意見欄只產生一筆 entry。同一欄內若有多個「- xxx」或「1. xxx」條目，必須合併成單一 comment（各條以「• 」開頭、換行分隔），不可拆成多筆。
          每筆格式：{ label, comment（可空字串）, score（數字或 null）}
       9. items[].averageScore: 每個 KPI/核心職能對應的「平均」欄數字（如 86、85.4），無則省略
       10. finalRating: 最終核定等第 (S/A/B/C/D)
