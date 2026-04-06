@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "choco360-dev",
+      "runtimeExecutable": "/Users/abraham/.nvm/versions/node/v20.20.1/bin/npm",
+      "runtimeArgs": ["run", "dev"],
+      "env": { "PATH": "/Users/abraham/.nvm/versions/node/v20.20.1/bin:/usr/bin:/bin" },
+      "port": 3000
+    }
+  ]
+}
