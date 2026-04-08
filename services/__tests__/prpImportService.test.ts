@@ -77,7 +77,8 @@ describe('prpImportService', () => {
     expect(result.name).toBe("方信登");
     expect(result.period).toBe("2025");
     expect(result.items).toHaveLength(2);
-    expect(result.items![0].itemLabel).toBe("KPI 1");
+    // "KPI 1" 是通用標籤，normalization 層會改用 selfDescription 首句作為標題
+    expect(result.items![0].itemLabel).toBe("協助KKTV->LINETV整併 Infra架構");
     expect(result.items![0].evaluations[0].score).toBe(84);
     expect(result.finalRating).toBe("A");
     expect(mockGenerateContent).toHaveBeenCalled();
