@@ -1,7 +1,8 @@
-import React, { useState, useEffect, Component, ErrorInfo } from 'react';
-import { User, SystemMessage, PRPRecord } from '../types';
+import React, { useState, useEffect, useMemo, Component, ErrorInfo } from 'react';
+import { User, PRPRecord, Nomination } from '../types';
 import { api } from '../services/api';
 import PRPEditPage from './PRPEditPage';
+import Reports from './Reports';
 
 // Error Boundary：攔截 PRPEditPage 內的 runtime 錯誤（例如 TipTap 初始化問題）
 class PRPErrorBoundary extends Component<
@@ -46,69 +47,69 @@ interface ProfileProps {
 }
 
 const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
-  const [messages, setMessages] = useState<SystemMessage[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [isPosting, setIsPosting] = useState(false);
   const [isRefreshingAvatar, setIsRefreshingAvatar] = useState(false);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSavingAvatar, setIsSavingAvatar] = useState(false);
-  
+
   const [prpRecords, setPrpRecords] = useState<PRPRecord[]>([]);
-  const [isFetchingPrp, setIsFetchingPrp] = useState(false);
+  const [nominations, setNominations] = useState<Nomination[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [editingPrpRecord, setEditingPrpRecord] = useState<PRPRecord | null>(null);
-  
+  const [reportNominationId, setReportNominationId] = useState<string | null>(null);
+
   const [tempAvatar, setTempAvatar] = useState(user.avatar);
   const [tempMotto, setTempMotto] = useState(user.motto || '');
   const [tempActiveSuperpowerId, setTempActiveSuperpowerId] = useState(user.activeSuperpowerId || '');
 
   useEffect(() => {
-    fetchMessages();
-    fetchPRP();
-  }, [user.id]); // Added dependency for safety
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [records, noms] = await Promise.all([
+          api.getPRPRecords(user.id),
+          api.getNominationsByRequester(user.id),
+        ]);
+        setPrpRecords(records);
+        setNominations(noms.filter(n => n.status === 'Approved'));
+      } catch (err) {
+        console.error('Failed to fetch profile data', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [user.id]);
 
-  const fetchPRP = async () => {
-    setIsFetchingPrp(true);
-    try {
-      const records = await api.getPRPRecords(user.id);
-      setPrpRecords(records);
-    } catch (err) {
-      console.error("Failed to fetch PRP", err);
-    } finally {
-      setIsFetchingPrp(false);
-    }
+  // 從提名標題抽取年份（例如「2025 卓越領導力反饋...」→ "2025"）
+  // 若標題沒有年份則 fallback 到 createdAt 年份
+  const getNomYear = (nom: Nomination): string => {
+    const match = nom.title?.match(/(\d{4})/);
+    if (match) return match[1];
+    return new Date(nom.createdAt).getFullYear().toString();
   };
 
-  const fetchMessages = async () => {
-    setIsLoadingMessages(true);
-    try {
-      const msgs = await api.getSystemMessages();
-      setMessages(msgs);
-    } catch (err) {
-      console.error("Failed to fetch messages", err);
-    } finally {
-      setIsLoadingMessages(false);
-    }
-  };
+  // 依年份分群（PRP 用 period，提名用標題年份）
+  const years = useMemo(() => {
+    const prpYears = prpRecords.map(r => r.period);
+    const nomYears = nominations.map(getNomYear);
+    return [...new Set([...prpYears, ...nomYears])].sort((a, b) => parseInt(b) - parseInt(a));
+  }, [prpRecords, nominations]);
 
-  // 修改：僅更新預覽
   const handlePreviewAvatar = () => {
     setIsRefreshingAvatar(true);
     const newSeed = Math.random().toString(36).substring(7);
     const newAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${newSeed}`;
-    
-    // 模擬一點點載入感，讓使用者感覺有在「計算」
     setTimeout(() => {
       setTempAvatar(newAvatar);
       setIsRefreshingAvatar(false);
     }, 300);
   };
 
-  // 新增：正式儲存所有變更
   const handleSaveChanges = async () => {
     setIsSavingAvatar(true);
     try {
-      const updatedUser = await api.updateUser({ 
-        ...user, 
+      const updatedUser = await api.updateUser({
+        ...user,
         avatar: tempAvatar,
         motto: tempMotto,
         activeSuperpowerId: tempActiveSuperpowerId
@@ -121,27 +122,10 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
     }
   };
 
-  // 新增：還原變更
   const handleCancelChanges = () => {
     setTempAvatar(user.avatar);
     setTempMotto(user.motto || '');
     setTempActiveSuperpowerId(user.activeSuperpowerId || '');
-  };
-
-  const handlePostMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim()) return;
-
-    setIsPosting(true);
-    try {
-      await api.postSystemMessage(user.id, newMessage);
-      setNewMessage('');
-      await fetchMessages();
-    } catch (err) {
-      alert("留言失敗");
-    } finally {
-      setIsPosting(false);
-    }
   };
 
   const manager = users.find(u => u.email === user.managerEmail);
@@ -159,7 +143,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
   const activeSuperpower = user.unlockedSuperpowers?.find(s => s.id === tempActiveSuperpowerId);
   const auraColor = activeSuperpower ? getSuperpowerColor(activeSuperpower.category) : '';
 
-  // Drill-down：進入 PRP 編輯頁
+  // ── Drill-down: PRP 詳細頁 ────────────────────────────────────
   if (editingPrpRecord) {
     return (
       <PRPErrorBoundary onReset={() => setEditingPrpRecord(null)}>
@@ -177,11 +161,32 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
     );
   }
 
+  // ── Drill-down: 360 洞察 ──────────────────────────────────────
+  if (reportNominationId !== null) {
+    return (
+      <div className="animate-in fade-in slide-in-from-bottom-4">
+        <div className="mb-6">
+          <button
+            onClick={() => setReportNominationId(null)}
+            className="flex items-center gap-2 text-slate-400 hover:text-slate-900 transition-colors font-bold text-sm group"
+          >
+            <svg className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+            返回個人中心
+          </button>
+        </div>
+        <Reports user={user} initialNominationId={reportNominationId} />
+      </div>
+    );
+  }
+
+  // ── 主頁面 ────────────────────────────────────────────────────
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <header>
         <h1 className="text-4xl font-black text-slate-900 tracking-tight">個人中心</h1>
-        <p className="text-slate-500 mt-2 text-lg">管理您的個人數位形象並與系統開發團隊對話。</p>
+        <p className="text-slate-500 mt-2 text-lg">管理您的個人數位形象與歷年紀錄。</p>
       </header>
 
       {/* Profile Card */}
@@ -191,12 +196,12 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
           <div className="flex flex-col items-center gap-6">
             <div className="relative group">
               <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 bg-gradient-to-tr ${auraColor} rounded-full blur-[30px] opacity-40 transition-all duration-700 pointer-events-none`}></div>
-              <img 
-                src={tempAvatar} 
-                className={`relative z-10 w-40 h-40 rounded-[3rem] border-4 border-white/20 shadow-2xl bg-slate-800 transition-all ${isRefreshingAvatar ? 'opacity-50 scale-95 blur-sm' : ''} ${hasChanges ? 'ring-4 ring-indigo-500 ring-offset-4 ring-offset-slate-900' : ''}`} 
-                alt={user.name} 
+              <img
+                src={tempAvatar}
+                className={`relative z-10 w-40 h-40 rounded-[3rem] border-4 border-white/20 shadow-2xl bg-slate-800 transition-all ${isRefreshingAvatar ? 'opacity-50 scale-95 blur-sm' : ''} ${hasChanges ? 'ring-4 ring-indigo-500 ring-offset-4 ring-offset-slate-900' : ''}`}
+                alt={user.name}
               />
-              <button 
+              <button
                 onClick={handlePreviewAvatar}
                 disabled={isRefreshingAvatar || isSavingAvatar}
                 className="absolute z-20 -bottom-2 -right-2 w-12 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-xl transition-all active:scale-90 disabled:opacity-50"
@@ -213,8 +218,8 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
           <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-8 w-full">
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">人生格言 (Motto)</p>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={tempMotto}
                 onChange={e => setTempMotto(e.target.value)}
                 placeholder="寫下一句代表您的格言..."
@@ -223,7 +228,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">裝備超能力 (Active Aura)</p>
-              <select 
+              <select
                 value={tempActiveSuperpowerId}
                 onChange={e => setTempActiveSuperpowerId(e.target.value)}
                 className="w-full bg-slate-800 text-white text-sm font-bold border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 transition-all outline-none appearance-none"
@@ -259,8 +264,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
             </div>
           </div>
         </div>
-        
-        {/* 整體儲存提示列 */}
+
         {hasChanges && (
           <div className="mt-8 p-6 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-4 relative z-10">
             <div className="flex items-center gap-3">
@@ -268,18 +272,8 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
               <p className="text-sm font-bold text-indigo-100">您有尚未儲存的個人檔案變更</p>
             </div>
             <div className="flex items-center gap-3">
-              <button 
-                onClick={handleCancelChanges}
-                disabled={isSavingAvatar}
-                className="px-4 py-2 hover:bg-white/10 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all"
-              >
-                取消還原
-              </button>
-              <button 
-                onClick={handleSaveChanges}
-                disabled={isSavingAvatar}
-                className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg transition-all flex items-center gap-2"
-              >
+              <button onClick={handleCancelChanges} disabled={isSavingAvatar} className="px-4 py-2 hover:bg-white/10 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all">取消還原</button>
+              <button onClick={handleSaveChanges} disabled={isSavingAvatar} className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg transition-all flex items-center gap-2">
                 {isSavingAvatar ? '儲存中...' : '確認儲存'}
               </button>
             </div>
@@ -287,129 +281,94 @@ const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate, users }) => {
         )}
       </section>
 
-      {/* PRP 績效管理區塊 [Sprint 1] */}
-      <section className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden">
-        <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shadow-inner">
-               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-slate-900">PRP 績效管理</h2>
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Personal Review Process & AI Synthesis</p>
-            </div>
-          </div>
+      {/* ── 年份分區 ─────────────────────────────────────────── */}
+      {isLoading ? (
+        <div className="py-16 text-center animate-pulse">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">載入歷年記錄中...</p>
         </div>
+      ) : years.length === 0 ? (
+        <div className="p-16 bg-white rounded-[3rem] border-2 border-dashed border-slate-200 text-center">
+          <p className="text-slate-300 italic font-bold">尚無歷年紀錄</p>
+        </div>
+      ) : (
+        <div className="space-y-10">
+          {years.map(year => {
+            const yearPRP = prpRecords.filter(r => r.period === year);
+            const yearNoms = nominations.filter(n => getNomYear(n) === year);
 
-        <div className="p-8 space-y-6">
-          {isFetchingPrp && prpRecords.length === 0 ? (
-            <div className="py-12 text-center flex flex-col items-center gap-4">
-               <div className="w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading records...</p>
-            </div>
-          ) : prpRecords.length === 0 ? (
-            <div className="py-12 text-center rounded-[2rem] border-2 border-dashed border-slate-100">
-               <p className="text-slate-300 italic font-bold">目前尚無歷史考核紀錄，將由管理員統一匯入處置後顯示。</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {prpRecords.map(record => (
-                <div key={record.id} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl hover:bg-white hover:border-indigo-200 hover:shadow-lg transition-all group overflow-hidden relative">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-all pointer-events-none">
-                    <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            return (
+              <section key={year}>
+                {/* 年份標題 */}
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black text-sm shadow-lg shrink-0">
+                    {year}
                   </div>
-                  <div>
-                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">{record.period} 年度</p>
-                    <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight italic">Achievement Report</h3>
-                  </div>
-                  <div className="mt-4 flex items-center gap-6">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Department</span>
-                      <span className="font-bold text-slate-700 text-xs">{record.department}</span>
-                    </div>
-                    <div className="flex flex-col border-l border-slate-200 pl-6">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Items Count</span>
-                      <span className="font-bold text-slate-700 text-xs">{record.items?.length || 0}</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      console.log('🖊️ [PRP] Opening editor:', record.id, record.period);
-                      setEditingPrpRecord(record);
-                    }}
-                    className="absolute bottom-4 right-4 w-9 h-9 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-xl flex items-center justify-center shadow-lg transition-all active:scale-90"
-                    title="查看績效詳情"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                  </button>
+                  <div className="flex-1 h-px bg-slate-200"></div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
 
-      {/* Message Board */}
-      <section className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden">
-        <div className="p-8 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-black text-slate-900">開發者留言板</h2>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">給予系統優化建議或鼓勵</p>
-          </div>
-          <div className="bg-slate-50 px-4 py-2 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest">
-            {messages.length} 則留言
-          </div>
-        </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* PRP 績效評核卡片 */}
+                  {yearPRP.map(record => (
+                    <button
+                      key={record.id}
+                      onClick={() => setEditingPrpRecord(record)}
+                      className="flex items-center gap-5 p-6 bg-white border border-slate-200 rounded-[2rem] hover:border-amber-300 hover:shadow-lg transition-all group text-left"
+                    >
+                      <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shrink-0 shadow-sm group-hover:bg-amber-100 transition-colors">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-0.5">PRP 績效評核</p>
+                        <p className="font-black text-slate-900 truncate">{record.jobTitle} · {record.department}</p>
+                        {record.finalRating && (
+                          <span className={`inline-block mt-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
+                            record.finalRating === 'S' ? 'bg-violet-100 text-violet-700' :
+                            record.finalRating === 'A' ? 'bg-indigo-100 text-indigo-700' :
+                            record.finalRating === 'B' ? 'bg-emerald-100 text-emerald-700' :
+                            'bg-slate-100 text-slate-600'
+                          }`}>
+                            評等 {record.finalRating}
+                          </span>
+                        )}
+                      </div>
+                      <svg className="w-5 h-5 text-slate-300 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  ))}
 
-        {/* Input area */}
-        <div className="p-8 bg-slate-50/50 border-b border-slate-100">
-          <form onSubmit={handlePostMessage} className="space-y-4">
-            <textarea
-              required
-              rows={3}
-              value={newMessage}
-              onChange={e => setNewMessage(e.target.value)}
-              placeholder="有什麼話想對開發者說嗎？所有人都看得到您的留言唷！"
-              className="w-full rounded-2xl border-slate-200 p-6 font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 transition-all shadow-inner bg-white"
-            />
-            <div className="flex justify-end">
-              <button 
-                type="submit"
-                disabled={isPosting || !newMessage.trim()}
-                className="px-10 py-3.5 bg-slate-900 text-white font-black rounded-xl hover:bg-indigo-600 transition-all disabled:opacity-30 shadow-xl shadow-slate-200"
-              >
-                {isPosting ? '留言傳送中...' : '送出留言'}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* List area */}
-        <div className="p-8 space-y-8 max-h-[500px] overflow-y-auto scrollbar-hide">
-          {isLoadingMessages && messages.length === 0 ? (
-            <div className="py-12 text-center">
-              <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="py-12 text-center text-slate-300 italic font-bold">目前尚無任何留言，搶當第一個！</div>
-          ) : messages.map((msg) => (
-            <div key={msg.id} className="flex gap-5 group animate-in fade-in slide-in-from-top-2">
-              <img src={msg.userAvatar} className="w-12 h-12 rounded-2xl shadow-md flex-shrink-0" alt="" />
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="font-black text-slate-900">{msg.userName}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(msg.createdAt).toLocaleString()}</p>
+                  {/* 360 洞察卡片 */}
+                  {yearNoms.map(nom => (
+                    <button
+                      key={nom.id}
+                      onClick={() => setReportNominationId(nom.id)}
+                      className="flex items-center gap-5 p-6 bg-white border border-slate-200 rounded-[2rem] hover:border-indigo-300 hover:shadow-lg transition-all group text-left"
+                    >
+                      <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0 shadow-sm group-hover:bg-indigo-100 transition-colors">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-0.5">360 洞察</p>
+                        <p className="font-black text-slate-900 truncate">{nom.title}</p>
+                        {nom.analysisFeedbackCount != null && nom.analysisFeedbackCount > 0 && (
+                          <p className="text-[10px] text-slate-400 font-bold mt-0.5">{nom.analysisFeedbackCount} 份回饋 {nom.aiAnalysis ? '· AI 已分析' : ''}</p>
+                        )}
+                      </div>
+                      <svg className="w-5 h-5 text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  ))}
                 </div>
-                <div className="p-5 bg-white border border-slate-100 rounded-2xl rounded-tl-none shadow-sm group-hover:border-indigo-100 transition-colors">
-                  <p className="text-slate-700 leading-relaxed font-medium">{msg.content}</p>
-                </div>
-              </div>
-            </div>
-          ))}
+              </section>
+            );
+          })}
         </div>
-      </section>
-
+      )}
     </div>
   );
 };

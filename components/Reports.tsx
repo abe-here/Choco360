@@ -89,9 +89,11 @@ const ManualRadarChart: React.FC<ManualRadarChartProps> = ({ data, size = 400 })
 // ==========================================
 interface ReportsProps {
   user: User;
+  subjectUser?: User;         // 若設定，則以此人為報告對象（主管查看直屬部屬用）
+  initialNominationId?: string; // 若設定，預先選取該評鑑週期
 }
 
-const Reports: React.FC<ReportsProps> = ({ user }) => {
+const Reports: React.FC<ReportsProps> = ({ user, subjectUser, initialNominationId }) => {
   const [myNominations, setMyNominations] = useState<Nomination[]>([]);
   const [selectedNomination, setSelectedNomination] = useState<Nomination | null>(null);
   const [feedbacks, setFeedbacks] = useState<FeedbackEntry[]>([]);
@@ -100,9 +102,17 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // 【新增】：管理員功能 - 查看不同用戶的報告
-  const [targetUserId, setTargetUserId] = useState(user.id);
+  const [targetUserId, setTargetUserId] = useState(subjectUser?.id ?? user.id);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [targetUser, setTargetUser] = useState<User>(user);
+  const [targetUser, setTargetUser] = useState<User>(subjectUser ?? user);
+
+  // 當 subjectUser 從外部變更時（主管切換檢視對象），同步更新內部狀態
+  useEffect(() => {
+    if (subjectUser) {
+      setTargetUserId(subjectUser.id);
+      setTargetUser(subjectUser);
+    }
+  }, [subjectUser?.id]);
 
   useEffect(() => {
     fetchInitialData();
@@ -115,7 +125,7 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
         api.getNominationsByRequester(targetUserId),
         api.getFeedbacksForUser(targetUserId),
         api.getQuestionnaires(),
-        user.isSystemAdmin ? api.getUsers() : Promise.resolve([])
+        user.isSystemAdmin && !subjectUser ? api.getUsers() : Promise.resolve([])
       ]);
 
 
@@ -123,18 +133,24 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
       setFeedbacks(fbs);
       setQuestionnaires(qs);
       setAllUsers(users);
-      
-      if (user.isSystemAdmin) {
+
+      if (user.isSystemAdmin && !subjectUser) {
         const tUser = users.find(u => u.id === targetUserId);
         if (tUser) setTargetUser(tUser);
-      } else {
+      } else if (!subjectUser) {
         setTargetUser(user);
       }
+      // subjectUser 模式：targetUser 已在上方 useEffect 設定，不在此覆蓋
 
-      // 【優化邏輯】：自動選取最新且「已有數據」的週期
+      // 選取週期：若有 initialNominationId 則優先選取，否則自動選最新且有數據的
       if (noms.length > 0) {
-        const nominationWithData = noms.find(n => fbs.some(f => f.nominationId === n.id));
-        setSelectedNomination(nominationWithData || noms[0]);
+        if (initialNominationId) {
+          const target = noms.find(n => n.id === initialNominationId);
+          setSelectedNomination(target || noms[0]);
+        } else {
+          const nominationWithData = noms.find(n => fbs.some(f => f.nominationId === n.id));
+          setSelectedNomination(nominationWithData || noms[0]);
+        }
       } else {
         setSelectedNomination(null);
       }
@@ -281,10 +297,12 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white; }
         }
       `}</style>
-      <header className="print:hidden">
-        <h1 className="text-4xl font-black text-slate-900 tracking-tight">個人成長報告</h1>
-        <p className="text-slate-500 text-lg mt-1 tracking-tight">專屬於您的專業表現深度洞察與分析。</p>
-      </header>
+      {!subjectUser && (
+        <header className="print:hidden">
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">個人成長報告</h1>
+          <p className="text-slate-500 text-lg mt-1 tracking-tight">專屬於您的專業表現深度洞察與分析。</p>
+        </header>
+      )}
       
       {/* 【新版佈局：Dossier Card】 */}
       <div className="bg-white rounded-[3rem] p-8 md:p-10 border border-slate-100 shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-8 animate-in fade-in slide-in-from-top-4 print:hidden">
@@ -300,10 +318,10 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
           </div>
           
           <div className="space-y-1 flex-1 min-w-0">
-            {user.isSystemAdmin ? (
+            {user.isSystemAdmin && !subjectUser ? (
               <div className="space-y-1">
                 <label className="block text-[10px] font-bold text-amber-500 uppercase tracking-widest">管理員視角：切換人員</label>
-                <select 
+                <select
                   value={targetUserId}
                   onChange={(e) => setTargetUserId(e.target.value)}
                   className="text-lg font-black text-slate-900 bg-transparent border-none p-0 outline-none cursor-pointer hover:text-indigo-600 transition-colors max-w-full truncate"

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { User } from '../types';
+import React, { useState, useEffect } from 'react';
+import { User, SystemMessage } from '../types';
+import { api } from '../services/api';
 
 interface CommunityProps {
   users: User[];
@@ -17,6 +18,41 @@ const getSuperpowerColor = (category?: string) => {
 
 const Community: React.FC<CommunityProps> = ({ users, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [messages, setMessages] = useState<SystemMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isPosting, setIsPosting] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+
+  useEffect(() => {
+    fetchMessages();
+  }, []);
+
+  const fetchMessages = async () => {
+    setIsLoadingMessages(true);
+    try {
+      const msgs = await api.getSystemMessages();
+      setMessages(msgs);
+    } catch (err) {
+      console.error("Failed to fetch messages", err);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  const handlePostMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !currentUser) return;
+    setIsPosting(true);
+    try {
+      await api.postSystemMessage(currentUser.id, newMessage);
+      setNewMessage('');
+      await fetchMessages();
+    } catch (err) {
+      alert("留言失敗");
+    } finally {
+      setIsPosting(false);
+    }
+  };
 
   // 結合真實的超能力資料
   const enhancedUsers = users.map(u => {
@@ -48,6 +84,64 @@ const Community: React.FC<CommunityProps> = ({ users, currentUser }) => {
         <h1 className="text-4xl font-black text-slate-900 tracking-tight">Choco Community 🍫</h1>
         <p className="text-slate-500 mt-2 text-lg">發掘團隊夥伴的隱藏特質，看看大家眼中的超能力！</p>
       </header>
+
+      {/* 開發者留言板 */}
+      <section className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden">
+        <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-black text-slate-900">開發者留言板</h2>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">給予系統優化建議或鼓勵</p>
+          </div>
+          <div className="bg-slate-50 px-4 py-2 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            {messages.length} 則留言
+          </div>
+        </div>
+
+        <div className="p-8 bg-slate-50/50 border-b border-slate-100">
+          <form onSubmit={handlePostMessage} className="space-y-4">
+            <textarea
+              required
+              rows={3}
+              value={newMessage}
+              onChange={e => setNewMessage(e.target.value)}
+              placeholder="有什麼話想對開發者說嗎？所有人都看得到您的留言唷！"
+              className="w-full rounded-2xl border-slate-200 p-6 font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 transition-all shadow-inner bg-white"
+            />
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={isPosting || !newMessage.trim()}
+                className="px-10 py-3.5 bg-slate-900 text-white font-black rounded-xl hover:bg-indigo-600 transition-all disabled:opacity-30 shadow-xl shadow-slate-200"
+              >
+                {isPosting ? '留言傳送中...' : '送出留言'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div className="p-8 space-y-8 max-h-[500px] overflow-y-auto scrollbar-hide">
+          {isLoadingMessages && messages.length === 0 ? (
+            <div className="py-12 text-center">
+              <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="py-12 text-center text-slate-300 italic font-bold">目前尚無任何留言，搶當第一個！</div>
+          ) : messages.map((msg) => (
+            <div key={msg.id} className="flex gap-5 group animate-in fade-in slide-in-from-top-2">
+              <img src={msg.userAvatar} className="w-12 h-12 rounded-2xl shadow-md flex-shrink-0" alt="" />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="font-black text-slate-900">{msg.userName}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(msg.createdAt).toLocaleString()}</p>
+                </div>
+                <div className="p-5 bg-white border border-slate-100 rounded-2xl rounded-tl-none shadow-sm group-hover:border-indigo-100 transition-colors">
+                  <p className="text-slate-700 leading-relaxed font-medium">{msg.content}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* 搜尋列 */}
       <section className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4">

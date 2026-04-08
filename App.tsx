@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import FeedbackForm from './components/FeedbackForm';
-import Reports from './components/Reports';
 import Nomination from './components/Nomination';
 import Approvals from './components/Approvals';
 import AdminPanel from './components/AdminPanel';
@@ -261,8 +260,7 @@ const App: React.FC = () => {
       {activeTab === 'dashboard' && <Dashboard user={currentUser} users={users} onNavigate={setActiveTab} />}
       {activeTab === 'nomination' && <Nomination users={users} user={currentUser} />}
       {activeTab === 'give' && <FeedbackForm users={users} currentUser={currentUser} />}
-      {activeTab === 'reports' && <Reports user={currentUser} />}
-      {activeTab === 'approvals' && <Approvals users={users} nominations={myApprovals} />}
+{activeTab === 'approvals' && <Approvals users={users} nominations={myApprovals} currentUser={currentUser} />}
       { activeTab === 'profile' && <Profile user={currentUser} onUserUpdate={handleUserUpdate} users={users} /> }
       { activeTab === 'community' && <Community users={users} currentUser={currentUser} /> }
       { activeTab === 'admin' && <AdminPanel users={users} setUsers={setUsers} questionnaires={questionnaires} setQuestionnaires={setQuestionnaires} /> }
