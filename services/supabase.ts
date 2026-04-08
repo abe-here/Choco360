@@ -16,23 +16,35 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 // 解決 supabase-js 在多頁籤或 React Strict Mode 下「偷取鎖定 (steal lock)」的錯誤
+// 注意：memoryLocks[name] 直接指向目前持有鎖的 acquire promise，
+// 而非鏈式串接，避免 re-entrant 呼叫造成死鎖。
+// acquireTimeout 會被實際使用，確保卡死的鎖不會永遠阻塞後續呼叫。
+const LOCK_FALLBACK_TIMEOUT_MS = 10_000;
+
 const memoryLocks: Record<string, Promise<void>> = {};
 
 const memoryLock = async (name: string, acquireTimeout: number, fn: () => Promise<any>) => {
-  let release: () => void;
+  const timeout = acquireTimeout > 0 ? acquireTimeout : LOCK_FALLBACK_TIMEOUT_MS;
+  let release!: () => void;
   const acquire = new Promise<void>(resolve => { release = resolve; });
 
   const previous = memoryLocks[name];
-  memoryLocks[name] = (previous || Promise.resolve()).then(() => acquire);
+  memoryLocks[name] = acquire; // 直接指向此次鎖，不再鏈式串接
 
   if (previous) {
-    await previous.catch(() => {});
+    await Promise.race([
+      previous.catch(() => {}),
+      new Promise<void>(resolve => setTimeout(resolve, timeout))
+    ]);
   }
 
   try {
     return await fn();
   } finally {
-    release!();
+    if (memoryLocks[name] === acquire) {
+      delete memoryLocks[name];
+    }
+    release();
   }
 };
 

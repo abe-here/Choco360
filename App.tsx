@@ -50,24 +50,34 @@ const App: React.FC = () => {
     let mounted = true;
 
     const initApp = async () => {
+      // 安全逾時：若 auth lock 死鎖或網路異常導致 initApp 卡住，
+      // 12 秒後強制清除 loading，避免無限轉圈。
+      const safetyTimer = setTimeout(() => {
+        if (mounted) {
+          console.warn('[initApp] Safety timeout — clearing loading state');
+          setLoading(false);
+        }
+      }, 12_000);
+
       try {
         const { connected, error } = await checkSupabaseConnection();
         if (mounted) {
           setIsDbConnected(connected);
           if (error) setDbError(error);
         }
-        
+
         if (connected) {
           const user = await api.getCurrentUser();
           if (mounted && user) {
             setCurrentUser(user);
           }
         }
-      } catch (e: any) { 
+      } catch (e: any) {
         console.error("Init failed:", e);
         if (mounted) setDbError(e.message || String(e));
-      } finally { 
-        if (mounted) setLoading(false); 
+      } finally {
+        clearTimeout(safetyTimer);
+        if (mounted) setLoading(false);
       }
     };
 
@@ -88,6 +98,20 @@ const App: React.FC = () => {
           if (mounted) setAuthError({ code: 'login_error', message: e.message || '登入失敗，請確認是否為公司帳號' });
         } finally {
           if (mounted) setLoading(false);
+        }
+      } else if (event === 'TOKEN_REFRESHED') {
+        // Token 成功自動刷新。若 currentUser 已存在則無需動作；
+        // 若 currentUser 為 null（如頁面從背景恢復），則重新載入用戶資料。
+        if (!currentUser && session && mounted) {
+          try {
+            if (mounted) setLoading(true);
+            const user = await api.getCurrentUser();
+            if (mounted) { setCurrentUser(user); setAuthError(null); }
+          } catch (e: any) {
+            console.error("Failed to restore user after token refresh:", e);
+          } finally {
+            if (mounted) setLoading(false);
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         if (mounted) {
