@@ -288,7 +288,7 @@ export const prpImportService = {
 
     try {
       console.log("🚀 [PRP Import] Starting Gemini analysis...");
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey, httpOptions: { baseUrl: `${window.location.origin}/api/gemini` } });
       const response = await ai.models.generateContent({
         model: GEMINI_MODELS.prpParsing,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
