@@ -53,7 +53,7 @@ Auth is Google OAuth via Supabase. On login, `api.getCurrentUser()` validates th
 
 ### AI layer
 
-`services/geminiService.ts` calls the Google Gemini API (`@google/genai`) to analyze 360 feedback and produce structured JSON (`AIAnalysis` type): summary, strengths, growth areas, action plan, and "superpowers" (epic English-title achievement badges). The current model is `gemini-3.1-pro-preview`. All prompts and AI output are in Traditional Chinese (繁體中文).
+`services/geminiService.ts` calls the Google Gemini API (`@google/genai`) to analyze 360 feedback and produce structured JSON (`AIAnalysis` type): summary, strengths, growth areas, action plan, and "superpowers" (epic English-title achievement badges). The model is configured via `GEMINI_MODELS.feedbackAnalysis` in `constants.tsx` (currently `gemini-2.5-flash`). All prompts and AI output are in Traditional Chinese (繁體中文).
 
 ### Key domain types (`types.ts`)
 

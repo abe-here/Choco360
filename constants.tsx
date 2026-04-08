@@ -1,5 +1,13 @@
 import { User, Questionnaire } from './types';
 
+// Centralized Gemini model config — update here to change models across the entire app.
+export const GEMINI_MODELS = {
+  /** 360-degree feedback analysis — Reports tab "生成 AI 洞察" */
+  feedbackAnalysis: 'gemini-2.5-flash',
+  /** PRP Markdown document parsing — Admin PRP import */
+  prpParsing: 'gemini-2.5-flash',
+} as const;
+
 export const ADMIN_USER_EMAIL = 'abraham.chien@choco.media';
 
 export const TEAM_MEMBERS: User[] = [

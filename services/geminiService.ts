@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { FeedbackEntry, AIAnalysis, Questionnaire } from "../types";
+import { GEMINI_MODELS } from "../constants";
 
 export const analyzeFeedback = async (feedbacks: FeedbackEntry[], questionnaire: Questionnaire): Promise<AIAnalysis> => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -54,7 +55,7 @@ export const analyzeFeedback = async (feedbacks: FeedbackEntry[], questionnaire:
   `;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: GEMINI_MODELS.feedbackAnalysis,
     contents: prompt,
     config: {
       systemInstruction,

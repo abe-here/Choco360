@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { PRPItem } from "../types";
+import { GEMINI_MODELS } from "../constants";
 
 export interface PRPEvaluationEntry {
   label: string;        // "原主管" | "新主管"
@@ -289,7 +290,7 @@ export const prpImportService = {
       console.log("🚀 [PRP Import] Starting Gemini analysis...");
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash', 
+        model: GEMINI_MODELS.prpParsing,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction,
