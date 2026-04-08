@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.6.0",
+    "date": "2026-04-09",
+    "summary": "主管中心、個人中心年份時間軸與 360 洞察整合",
+    "changes": [
+      "🆕 主管中心（我的團隊）：主管可在 Approvals 直接瀏覽 direct reports 的 PRP 記錄與 360 洞察，三層 drill-down 導航",
+      "🆕 個人中心年份時間軸：整合原「我的報告」，以年份分群呈現 PRP（琥珀色）與 360 洞察（靛藍色）卡片",
+      "🆕 360 洞察命名：「成長報告」更名為「360 洞察」，定位更精準",
+      "📊 Reports.tsx 新增 subjectUser & initialNominationId props，支援主管嵌入式閱覽",
+      "🛠 導覽精簡：移除獨立「我的報告」tab；「審核名單」→「主管中心」；Approvals 篩選 tab 視覺分層",
+      "💬 社群交流：開發者留言板移至頁面上半部",
+      "✅ Unit tests 42/42 通過；更新 itemLabel normalization 測試預期值"
+    ]
+  },
+  {
     "version": "1.5.0",
     "date": "2026-04-03",
     "summary": "社群功能、超能力個人檔案、離職管理與報告優化",
