@@ -8,7 +8,7 @@ export const analyzeFeedback = async (feedbacks: FeedbackEntry[], questionnaire:
   if (!apiKey) {
     throw new Error("找不到 VITE_GEMINI_API_KEY 環境變數，請確認 .env.local 已正確設定。");
   }
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey, httpOptions: { baseUrl: `${window.location.origin}/api/gemini` } });
   
   // 提取問項文字回饋與評分
   const openEndedAnswers = feedbacks.flatMap(f => 

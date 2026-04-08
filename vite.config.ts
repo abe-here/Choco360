@@ -18,6 +18,11 @@ export default defineConfig(({ mode }) => {
             target: 'https://slack.com/api',
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/api\/slack/, ''),
+          },
+          '/api/gemini': {
+            target: 'https://generativelanguage.googleapis.com',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/gemini/, ''),
           }
         }
       },
