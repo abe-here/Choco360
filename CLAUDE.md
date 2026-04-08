@@ -80,3 +80,16 @@ Auth is Google OAuth via Supabase. On login, `api.getCurrentUser()` validates th
 ### Static seed data
 
 `constants.tsx` holds `TEAM_MEMBERS` (the full employee roster) and `INITIAL_QUESTIONNAIRES`. These are used as fallbacks or initial data seeding — the live app reads from Supabase `profiles` and `questionnaires` tables.
+
+## Release 程序
+
+每次 merge to master（正式發版）前，**必須**遵循 `.agent/workflows/release.md` 的完整流程，包含：
+
+1. 執行測試（`npm run test:unit`、`npm test`）確認全數通過
+2. 以 `npm version <patch|minor|major> --no-git-tag-version` 更新 `package.json` 版號
+3. 在 `changelog.json` 陣列**最前端**插入新版本物件（version / date / summary / changes）
+4. 在 `VERSION.md` 的「版本紀錄」區塊**最上方**新增對應的 Markdown 條目，並更新標題版號
+5. commit 訊息格式：`chore(release): v<version> — <摘要>`
+6. push 後建立 GitHub Release tag `v<version>`
+
+> ⚠️ 不可自行發明其他 changelog 檔案（如 `CHANGELOG.md`）；唯一事實來源為 `changelog.json` 與 `VERSION.md`。
