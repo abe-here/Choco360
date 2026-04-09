@@ -20,7 +20,7 @@ const Approvals: React.FC<ApprovalsProps> = ({ users, nominations: initialNomina
   const [filter, setFilter] = useState<'pending' | 'approved' | 'all'>('pending');
 
   // ── 我的團隊導航 state ──────────────────────────────────────────
-  const [view, setView] = useState<ApprovalsView>('approvals');
+  const [view, setView] = useState<ApprovalsView>('team');
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [memberDetailTab, setMemberDetailTab] = useState<'prp' | 'report'>('prp');
 
@@ -289,7 +289,9 @@ const Approvals: React.FC<ApprovalsProps> = ({ users, nominations: initialNomina
               className="px-5 py-2.5 rounded-xl text-xs font-black transition-all text-slate-400 hover:text-slate-600"
             >
               提名審核
-              <span className="ml-2 px-2 py-0.5 rounded-md text-[10px] bg-slate-200 text-slate-500">{counts.total}</span>
+              {counts.pending > 0 && (
+                <span className="ml-2 px-2 py-0.5 rounded-md text-[10px] bg-red-500 text-white font-black">{counts.pending}</span>
+              )}
             </button>
             <button
               onClick={() => setView('team')}
@@ -385,7 +387,9 @@ const Approvals: React.FC<ApprovalsProps> = ({ users, nominations: initialNomina
             className="px-5 py-2.5 rounded-xl text-xs font-black transition-all bg-white text-indigo-600 shadow-sm"
           >
             提名審核
-            <span className="ml-2 px-2 py-0.5 rounded-md text-[10px] bg-indigo-600 text-white">{counts.total}</span>
+            {counts.pending > 0 && (
+              <span className="ml-2 px-2 py-0.5 rounded-md text-[10px] bg-red-500 text-white font-black">{counts.pending}</span>
+            )}
           </button>
           <button
             onClick={() => setView('team')}
