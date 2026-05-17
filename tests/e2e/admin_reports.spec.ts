@@ -36,7 +36,30 @@ test.describe('Admin Reports View', () => {
       await route.fulfill({ status: 200, json: [] });
     });
 
-    await page.route('**/*/rest/v1/nominations*', async (route) => {
+    // Admin 自己作為 requester 的 nomination（讓個人中心顯示 360 洞察卡片）
+    await page.route('**/*/rest/v1/nominations*', async (route, request) => {
+      const url = request.url();
+      if (url.includes('requester_id=eq.emp-admin')) {
+        await route.fulfill({
+          status: 200,
+          json: [{
+            id: 'nom-admin-1',
+            requester_id: 'emp-admin',
+            manager_email: 'ceo@choco.media',
+            questionnaire_id: 'q-1',
+            title: 'Admin 2024 360 評鑑',
+            status: 'Approved',
+            reviewer_ids: [],
+            created_at: '2024-01-01T00:00:00Z'
+          }]
+        });
+        return;
+      }
+      await route.fulfill({ status: 200, json: [] });
+    });
+
+    // PRP records (empty for admin)
+    await page.route('**/*/rest/v1/prp_records*', async (route) => {
       await route.fulfill({ status: 200, json: [] });
     });
 
@@ -47,7 +70,9 @@ test.describe('Admin Reports View', () => {
     }, ref);
 
     await page.goto('/');
-    await page.locator('nav button', { hasText: '我的報告' }).click();
+    // Reports 現整合到個人中心：點擊「個人中心」→ 點 360 洞察卡片 drill-down
+    await page.locator('nav button', { hasText: '個人中心' }).click();
+    await page.locator('main').locator('button', { hasText: '360 洞察' }).first().click();
   });
 
   test('管理員可切換視角檢視他人報告並觸發提示', async ({ page }) => {

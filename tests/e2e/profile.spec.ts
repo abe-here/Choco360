@@ -206,13 +206,15 @@ test.describe('03. Profile & Onboarding - Comprehensive Tests', () => {
   });
 
   test('開發者留言板應正常載入歷史留言並允許發送新留言', async ({ page }) => {
-    await page.locator('nav button', { hasText: '個人中心' }).click();
+    await page.locator('nav button', { hasText: '社群交流' }).click();
 
     const main = page.locator('main');
-    await expect(main.locator('h2', { hasText: '開發者留言板' })).toBeVisible();
-    await expect(main.locator('text=1 則留言')).toBeVisible();
-    await expect(main.locator('text=Bob Jones')).toBeVisible();
-    await expect(main.locator('text=請問何時會有暗黑模式？')).toBeVisible();
+    // 鎖定到「開發者留言板」section（避免與下方員工卡片中的 Bob Jones 衝突）
+    const messageBoard = main.locator('section').filter({ has: page.locator('h2', { hasText: '開發者留言板' }) });
+    await expect(messageBoard.locator('h2', { hasText: '開發者留言板' })).toBeVisible();
+    await expect(messageBoard.locator('text=1 則留言')).toBeVisible();
+    await expect(messageBoard.locator('text=Bob Jones')).toBeVisible();
+    await expect(messageBoard.locator('text=請問何時會有暗黑模式？')).toBeVisible();
 
     // 發送留言
     const textarea = main.locator('textarea[placeholder*="有什麼話想對開發者說嗎"]');

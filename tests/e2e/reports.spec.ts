@@ -189,6 +189,11 @@ test.describe('06. Reports & AI Coach', () => {
       await route.fulfill({ status: 200, json: [] });
     });
 
+    // === Mock: prp_records ===
+    await page.route('**/*/rest/v1/prp_records*', async (route) => {
+      await route.fulfill({ status: 200, json: [] });
+    });
+
     // Auth
     const ref = new URL(process.env.VITE_SUPABASE_URL || 'https://default.supabase.co').hostname.split('.')[0];
     await page.addInitScript((projectRef) => {
@@ -200,8 +205,9 @@ test.describe('06. Reports & AI Coach', () => {
     await page.goto('/');
     await expect(page.locator('h1:has-text("歡迎使用 Choco360 👋")')).toBeVisible({ timeout: 10000 });
 
-    // Navigate to Reports
-    await page.locator('nav button', { hasText: '我的報告' }).click();
+    // Reports 現整合到個人中心：點「個人中心」→ 點 360 洞察卡片 drill-down 進入
+    await page.locator('nav button', { hasText: '個人中心' }).click();
+    await page.locator('main').locator('button', { hasText: '360 洞察' }).first().click();
     await expect(page.locator('h1:has-text("個人成長報告")')).toBeVisible({ timeout: 10000 });
   });
 
