@@ -21,8 +21,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Run unit tests
-        run: npm run test:unit
+      - name: Run Supabase API tests
+        # 只跑 api.test.ts —— 它是唯一真正連接 Supabase 的測試文件
+        # 其他測試需要 Gemini/Slack API keys，與保活 Supabase 無關
+        run: npx vitest run services/__tests__/api.test.ts
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
