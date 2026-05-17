@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.6.2",
+    "date": "2026-05-17",
+    "summary": "E2E 測試對齊 v1.6.0 UI 重構",
+    "changes": [
+      "✅ E2E 測試 33/33 全綠（執行時間 6m31s → 43.5s）",
+      "🧪 tests/e2e/profile.spec.ts：開發者留言板測試改點「社群交流」（v1.6.0 後已搬離 Profile）",
+      "🧪 tests/e2e/nomination.spec.ts：主管審核流程改點「主管中心」+ 切換「提名審核」sub-tab",
+      "🧪 tests/e2e/admin_reports.spec.ts：管理員報告改走「個人中心 → 360 洞察」drill-down，並補 admin nomination mock",
+      "🧪 tests/e2e/reports.spec.ts：補 prp_records mock + beforeEach 改走 drill-down 流程（9 個測試）",
+      "🛡 不影響 App 程式碼，純測試端對齊"
+    ]
+  },
+  {
     "version": "1.6.1",
     "date": "2026-04-09",
     "summary": "主管中心 UX 微調",
