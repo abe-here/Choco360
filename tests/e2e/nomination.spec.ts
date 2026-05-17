@@ -159,11 +159,14 @@ test.describe('04. Nomination Flow', () => {
 
     await page.goto('/');
     
-    // 進入審核名單 (Approvals) 頁面
-    await page.click('text=審核名單');
+    // 進入主管中心 (Approvals) 頁面
+    await page.locator('nav button', { hasText: '主管中心' }).click();
 
-    // 驗證標題與待處理數量
-    await expect(page.locator('main').locator('h1:has-text("審核名單")')).toBeVisible();
+    // 驗證標題
+    await expect(page.locator('main').locator('h1:has-text("主管中心")')).toBeVisible();
+
+    // 切換到「提名審核」sub-tab（預設為「我的團隊」）
+    await page.locator('main').locator('button', { hasText: '提名審核' }).click();
     await expect(page.locator('main').locator('text=Employee A')).toBeVisible();
     await expect(page.locator('main').locator('text=Bob')).toBeVisible(); // 受邀人
 
